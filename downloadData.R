@@ -26,7 +26,6 @@ links2 <- getValidLinks(source2)
 links <- merge(links1, links2, all = T)
 
 dir.create("EPID600_Kwon_Downloads", showWarnings = F)
-dir.create("EPID600_Kwon_Data", showWarnings = F)
 
 for (i in 1:nrow(links)) {
   link <- paste0("http://www.fda.gov", as.character(links[i, "link"]))
