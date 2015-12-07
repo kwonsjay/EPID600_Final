@@ -23,28 +23,30 @@ summarise(count = n())
 demo <- survey %>%
 filter(database == "demo")
 
-drug <- survey %>%
-filter(database == "drug")
+# drug <- survey %>%
+# filter(database == "drug")
+#
+# indi <- survey %>%
+# filter(database == "indi")
+#
+# outc <- survey %>%
+# filter(database == "outc")
+#
+# reac <- survey %>%
+# filter(database == "reac")
+#
+# rpsr <- survey %>%
+# filter(database == "rpsr")
+#
+# ther <- survey %>%
+# filter(database == "ther")
 
-indi <- survey %>%
-filter(database == "indi")
-
-outc <- survey %>%
-filter(database == "outc")
-
-reac <- survey %>%
-filter(database == "reac")
-
-rpsr <- survey %>%
-filter(database == "rpsr")
-
-ther <- survey %>%
-filter(database == "ther")
-
-#Import data, catch errors to see what values are missing
+#Import data, catch errors to see what values are missing, export dataframes
+dir.create("EPID600_Kwon_RData", showWarnings = F)
 cases <- list()
 columns <- list()
 failures <- list()
+names <- list()
 count <- 0
 for (directory in demo$directory) {
   count <- count + 1
@@ -57,12 +59,11 @@ for (directory in demo$directory) {
   }
   cases[count] <- dim(data)[1]
   columns[count] <- dim(data)[2]
+  names[count] <- names(data)
 }
-print(cases)
-print(columns)
-print(failures)
 #Found that 2009Q3 data has an error where a row is prematurely terminated by newline. Manually fixed using vim. Moving on.
+save(list = c("cases", "columns", "names"), file = "./EPID600_Kwon_RData/demo.info")
 
+#All adverse events in FAERS
+Reduce("+", cases)
 
-
-test <- read.table("./epid600_kwon_data/2009q3/ascii/demo09q3.txt", header = TRUE, sep = "$", comment.char = "", quote = "", na.strings = c(""))
