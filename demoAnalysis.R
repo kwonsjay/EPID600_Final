@@ -5,8 +5,13 @@
 library(dplyr)
 library(rworldmap)
 
+#Define helper functions
+convertAge <- function(age, )
+
 #Import general info
 load("./EPID600_Kwon_RData/demo.general.info")
+
+#This is the number of rows the merged dataframe should have
 Reduce("+", cases)
 
 #Merge demographic data
@@ -30,7 +35,11 @@ for (i in 1:nrow(files)) {
 #Save merged dataframe for later use
 save(list = "demo", file = "./EPID600_Kwon_RData/all.demographic.RData")
 
+#Load all demographics data into workspace
+load("./EPID600_Kwon_RData/all.demographic.RData")
+
 #Draw world map of adverse event reports
+.pardefault <- par()
 regions <- demo %>%
 filter(!is.na(reporter_country)) %>%
 filter(nchar(as.character(reporter_country)) == 2) %>%
@@ -38,9 +47,32 @@ group_by(reporter_country) %>%
 summarise(count = n())
 
 sPDF <- joinCountryData2Map(regions, joinCode = "ISO2", nameJoinColumn = "reporter_country")
-par(mai = c(0,0,0.2,0), xaxs = "i", yaxs = "i")
+#par(mai = c(0,0,0.2,0), xaxs = "i", yaxs = "i")
 mapCountryData(sPDF, nameColumnToPlot = "count", mapTitle = "Adverse Event Reports by Country")
 #mapParams <- mapCountryData(sPDF, nameColumnToPlot = "count", addLegend = F)
 #do.call(addMapLegend, c(mapParams, legendWidth = 0.5, legendMar = 2))
 dev.copy(pdf, "worldmap.pdf")
 dev.off()
+
+#Draw bar plot of adverse event reports
+by.quarter <- demo %>%
+group_by(year, quarter) %>%
+summarise(count = n())
+by.quarter$label <- paste0(by.quarter$year, "Q", by.quarter$quarter)
+barplot(by.quarter$count, names.arg = by.quarter$label, main = "Total Reports by Quarter", ylab = "Count", space = 1)
+dev.copy(pdf, "quarterlyreports.pdf")
+dev.off()
+
+by.year <- demo %>%
+group_by(year) %>%
+summarise(count = n())
+barplot(by.year$count, names.arg = by.year$year, main = "Total Reports by Year", ylab = "Count")
+dev.copy(pdf, "yearlyreports.pdf")
+dev.off()
+
+#Draw bar plot of age distribution
+by.age <- demo %>%
+filter(!is.na(age)) %>%
+filter(!is.na(age_cod))
+
+by.age$age <- as.numeric(by.age$age)
