@@ -4,6 +4,19 @@
 #Import libraries
 library(dplyr)
 
+#Country to ISO conversion function
+getISO <- function(country, table) {
+  result <- NA
+  if (!is.na(country)) {
+    iso <- table %>%
+    filter(Name == toupper(country))
+    if (dim(iso)[1] != 0) {
+      result <- as.character(iso$Code)
+    }
+  }
+  return(result)
+}
+
 #Create directories
 dir.create("EPID600_Kwon_RData", showWarnings = F)
 dir.create("EPID600_Kwon_RData/Demo", showWarnings = F)
@@ -38,10 +51,17 @@ filter(year < 2013)
 legacy <- legacy[-c(nrow(legacy)),]
 
 #Add trailing $ to legacy headers, overwriting original data
-for (directory in legacy$directory) {
-  lines <- readLines(directory)
-  lines[1] <- paste0(lines[1], "$")
-  writeLines(lines, directory)
+flag <- "clean.flag" %in% list.files("./EPID600_Kwon_Data", recursive = F)
+if (!flag) {
+  print("No flag. Adding trailing $ to legacy headers...")
+  for (directory in legacy$directory) {
+    lines <- readLines(directory)
+    lines[1] <- paste0(lines[1], "$")
+    writeLines(lines, directory)
+  }
+  save(list = "flag", file = "./EPID600_Kwon_Data/clean.flag")
+} else {
+  print("Flag observed. Skipping this step...")
 }
 
 #Read in each file and collect some basic metrics
@@ -55,7 +75,7 @@ count <- 0
 for (directory in demo$directory) {
   count <- count + 1
   fname <-  paste0(strsplit(directory, "/")[[1]][3], "demo.RData")
-  error <- try(data <- read.table(directory, header = TRUE, sep = "$", comment.char = "", quote = "", na.strings = c("")), silent = F)
+  error <- try(data <- read.table(directory, header = T, sep = "$", comment.char = "", quote = "", na.strings = c("")), silent = F)
   
   if (class(error) == "try-error") {
     failures[[length(failures) + 1]] <- c(strsplit(directory, "/")[[1]][3], error[1])
@@ -74,9 +94,21 @@ for (directory in demo$directory) {
   data <- data[, !(names(data) %in% exclude)]
   
   if (!("reporter_country" %in% names(data))) {
-    data[, "reporter_country"] <- NA
+    data$reporter_country <- NA
   }
   
+  #Perform country code conversion
+  codes <- read.table("./iso.txt", header = T, sep = ",", quote = '\"', na.strings = c(""))
+  codes$Name <- toupper(codes$Name)
+  if (directory %in% legacy$directory) {
+    data$reporter_country <- unlist(lapply(data$reporter_country, function(x) getISO(as.character(x), codes)))
+    data$reporter_country <- as.factor(data$reporter_country)
+  }
+  
+  #Convert inconsistent column formats to factor
+  data$wt <- as.factor(data$wt)
+  
+  #Collect general stats and QC-related information
   cases[count] <- dim(data)[1]
   columns[[count]] <- c(strsplit(directory, "/")[[1]][3], dim(data)[2])
   names[[count]] <- names(data)
@@ -96,3 +128,4 @@ for (name in colnames) {
   }
 }
 print(length(unlist(unique)) == 12)
+
