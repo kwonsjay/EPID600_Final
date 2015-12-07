@@ -4,6 +4,9 @@
 #Import libraries
 library(dplyr)
 library(rworldmap)
+library(ggplot2)
+library(maps)
+library(countrycode)
 
 #Define helper functions
 convertAge <- function(age, code) {
@@ -20,6 +23,8 @@ convertAge <- function(age, code) {
     result <- age / 365
   } else if (code == "HR") {
     result <- age / (365 * 24)
+  } else if (code == "SEC") {
+    result <- age / (365 * 24 * 3600)
   }
   if (!is.na(result)) {
     return(as.integer(result))
@@ -55,43 +60,106 @@ for (i in 1:nrow(files)) {
 save(list = "demo", file = "./EPID600_Kwon_RData/all.demographic.RData")
 
 #Load all demographics data into workspace
-load("./EPID600_Kwon_RData/all.demographic.RData")
+#load("./EPID600_Kwon_RData/all.demographic.RData")
 
 #Draw world map of adverse event reports
 .pardefault <- par()
-regions <- demo %>%
-filter(!is.na(reporter_country)) %>%
-filter(nchar(as.character(reporter_country)) == 2) %>%
-group_by(reporter_country) %>%
-summarise(count = n())
 
-sPDF <- joinCountryData2Map(regions, joinCode = "ISO2", nameJoinColumn = "reporter_country")
-#par(mai = c(0,0,0.2,0), xaxs = "i", yaxs = "i")
-mapCountryData(sPDF, nameColumnToPlot = "count", mapTitle = "Adverse Event Reports by Country")
-#mapParams <- mapCountryData(sPDF, nameColumnToPlot = "count", addLegend = F)
-#do.call(addMapLegend, c(mapParams, legendWidth = 0.5, legendMar = 2))
-dev.copy(pdf, "worldmap.pdf")
-dev.off()
+regions <- demo %>%
+  filter(!is.na(reporter_country)) %>%
+  filter(nchar(as.character(reporter_country)) == 2) %>%
+  group_by(reporter_country) %>%
+  summarise(count = n())
+
+map <- map_data("world")
+map$reporter_country = countrycode(map$region, origin = "country.name", destination = "iso2c")
+world.map <- left_join(regions, map)
+p <- ggplot(world.map, aes(x = long, y = lat, group = group, fill = count)) +
+geom_polygon() + expand_limits(x = world.map$long, y = world.map$lat) +
+labs(title = "Report Density by Country", x = "Longitude", y = "Latitude")
+ggsave(p, file = "A1.WorldDensity.pdf", width = 7, height = 4)
+
+p <- ggplot(world.map, aes(x = long, y = lat, group = group, fill = log(count))) +
+geom_polygon() + expand_limits(x = world.map$long, y = world.map$lat) +
+labs(title = "Report Log Density by Country", x = "Longitude", y = "Latitude")
+ggsave(p, file = "A2.WorldDensityLog.pdf", width = 7, height = 4)
+
+rm(list = c("map", "world.map", "regions"))
+gc()
 
 #Draw bar plot of adverse event reports
 by.quarter <- demo %>%
-group_by(year, quarter) %>%
-summarise(count = n())
-by.quarter$label <- paste0(by.quarter$year, "Q", by.quarter$quarter)
-barplot(by.quarter$count, names.arg = by.quarter$label, main = "Total Reports by Quarter", ylab = "Count", space = 1)
-dev.copy(pdf, "quarterlyreports.pdf")
-dev.off()
+  group_by(year, quarter) %>%
+  summarise(count = n())
+  
+by.quarter$qname <- paste0(by.quarter$year, "Q", by.quarter$quarter)
+p <- ggplot(by.quarter, aes(x = qname, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Total Reports by Quarter", x = "Quarter", y = "Count") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+ggsave(p, file = "A3.QuarterlyReports.pdf", width = 7, height = 4)
 
 by.year <- demo %>%
-group_by(year) %>%
-summarise(count = n())
-barplot(by.year$count, names.arg = by.year$year, main = "Total Reports by Year", ylab = "Count")
-dev.copy(pdf, "yearlyreports.pdf")
-dev.off()
+  group_by(year) %>%
+  summarise(count = n())
+  
+p <- ggplot(by.year, aes(x = year, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Total Reports by Year", x = "Year", y = "Count")
+ggsave(p, file = "A4.YearlyReports.pdf", width = 7, height = 4)
+
+rm(list = c("by.quarter", "by.year"))
+gc()
 
 #Draw bar plot of age distribution
 by.age <- demo %>%
-filter(!is.na(age)) %>%
-filter(!is.na(age_cod))
+  filter(!is.na(age)) %>%
+  filter(!is.na(age_cod))
 
 by.age$age <- as.numeric(by.age$age)
+
+#Weed out negative age values
+by.age <- by.age %>%
+  filter(age >= 0)
+
+by.age <- cbind(by.age, age_yr = mapply(convertAge, by.age$age, by.age$age_cod))
+
+#Too many age and age_cod errors in db. Had to set an upper bound just above the oldest person in the world.
+by.age <- by.age %>%
+  filter(age_yr < 130)
+
+by.age.count <- by.age %>%
+  group_by(age_yr) %>%
+  summarise(count = n())
+
+p <- ggplot(by.age.count, aes(x = age_yr, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Age Distribution in Reports", x = "Age", y = "Count")
+ggsave(p, file = "A5.AgeDist.pdf", width = 7, height = 4)
+
+#Draw bar plot of gender distribution
+by.gender <- demo %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.gender, aes(x = sex, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Gender Distribution in Reports", x = "Gender", y = "Count")
+ggsave(p, file = "A6.GenderDist.pdf", width = 7, height = 4)
+
+#Draw bar plot of gender distribution in age groups
+by.age.gender <- by.age %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(age_yr, sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.age.gender, aes(x = age_yr, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Age Distribution of Reports by Gender", x = "Age", y = "Count")
+ggsave(p, file = "A7.AgeGenderDist.pdf", width = 7, height = 4)
+
+rm(list = c("by.age", "by.age.count", "by.gender", "by.age.gender"))
+gc()
