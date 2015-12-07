@@ -4,6 +4,10 @@
 #Import libraries
 library(dplyr)
 
+#Create directories
+dir.create("EPID600_Kwon_RData", showWarnings = F)
+dir.create("EPID600_Kwon_RData/Demo", showWarnings = F)
+
 #Weed out irrelevant files
 files <- list.files("./EPID600_Kwon_Data", recursive = T, full.names = T)
 files <- lapply(files, tolower)
@@ -19,51 +23,62 @@ survey %>%
 group_by(database) %>%
 summarise(count = n())
 
-#Split databases by category
+#Save clean directory/database survey to file
+save(list = "survey", file = "./EPID600_Kwon_RData/all.directories.info")
+
+#Select database of interest
 demo <- survey %>%
 filter(database == "demo")
 
-# drug <- survey %>%
-# filter(database == "drug")
-#
-# indi <- survey %>%
-# filter(database == "indi")
-#
-# outc <- survey %>%
-# filter(database == "outc")
-#
-# reac <- survey %>%
-# filter(database == "reac")
-#
-# rpsr <- survey %>%
-# filter(database == "rpsr")
-#
-# ther <- survey %>%
-# filter(database == "ther")
-
 #Import data, catch errors to see what values are missing, export dataframes
-dir.create("EPID600_Kwon_RData", showWarnings = F)
+exclude <- c("death_dt", "confid", "image", "to_mfr", "foll_seq", "event_dt", "mfr_dt", "rept_cod", "auth_num", "mfr_num", "mfr_sndr", "rept_dt", "caseversion", "lit_ref", "age_grp", "occr_country", "init_fda_dt")
 cases <- list()
 columns <- list()
 failures <- list()
 names <- list()
 count <- 0
+
 for (directory in demo$directory) {
   count <- count + 1
+  fname <-  paste0(strsplit(directory, "/")[[1]][3], "demo.RData")
   error <- try(data <- read.table(directory, header = TRUE, sep = "$", comment.char = "", quote = "", na.strings = c("")), silent = F)
+  
   if (class(error) == "try-error") {
-    failures[length(failures) + 1] <- error[1]
+    failures[[length(failures) + 1]] <- c(strsplit(directory, "/")[[1]][3], error[1])
     cases[count] <- 0
     columns[count] <- 0
+    names[[count]] <- "NA"
     next
   }
+  
+  #Standardize column names and remove/add those not needed/needed
+  names(data) <- tolower(names(data))
+  names(data)[names(data) == "i_f_code"] <- "i_f_cod"
+  names(data)[names(data) == "isr"] <- "primaryid"
+  names(data)[names(data) == "case"] <- "caseid"
+  names(data)[names(data) == "gndr_cod"] <- "sex"
+  data <- data[, !(names(data) %in% exclude)]
+  
+  if (!("reporter_country" %in% names(data))) {
+    data[, "reporter_country"] <- NA
+  }
+  
   cases[count] <- dim(data)[1]
-  columns[count] <- dim(data)[2]
-  names[count] <- names(data)
+  columns[[count]] <- c(strsplit(directory, "/")[[1]][3], dim(data)[2])
+  names[[count]] <- names(data)
+  
+  save(list = c("data"), file = paste0("./EPID600_Kwon_RData/Demo/", fname))
 }
 #Found that 2009Q3 data has an error where a row is prematurely terminated by newline. Manually fixed using vim. Moving on.
-save(list = c("cases", "columns", "names"), file = "./EPID600_Kwon_RData/demo.info")
+save(list = c("cases", "columns", "names"), file = "./EPID600_Kwon_RData/demo.general.info")
 
-#All adverse events in FAERS
-Reduce("+", cases)
-
+#QC
+names <- lapply(names, tolower)
+colnames <- unlist(names)
+unique <- list()
+for (name in colnames) {
+  if (!(name %in% unlist(unique))) {
+    unique[length(unique) + 1] <- name
+  }
+}
+print(length(unlist(unique)) == 12)
