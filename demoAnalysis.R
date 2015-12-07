@@ -6,7 +6,26 @@ library(dplyr)
 library(rworldmap)
 
 #Define helper functions
-convertAge <- function(age, )
+convertAge <- function(age, code) {
+  result <- NA
+  if (code == "DEC") {
+    result <- age * 10
+  } else if (code == "YR") {
+    result <- age
+  } else if (code == "MON") {
+    result <- age / 12
+  } else if (code == "WK") {
+    result <- age / 48
+  } else if (code == "DY") {
+    result <- age / 365
+  } else if (code == "HR") {
+    result <- age / (365 * 24)
+  }
+  if (!is.na(result)) {
+    return(as.integer(result))
+  }
+  return(result)
+}
 
 #Import general info
 load("./EPID600_Kwon_RData/demo.general.info")
