@@ -17,8 +17,10 @@ files <- files[unlist(lapply(files, function(x) strsplit(strsplit(x, "/")[[1]][5
 
 #Screener to see if all databases have been identified
 database <- unlist(lapply(files, function(x) strsplit(strsplit(x, "/")[[1]][5], "[0-9]")[[1]][1]))
+year <- unlist(lapply(files, function(x) as.integer(strsplit(strsplit(x, "/")[[1]][3], "\\q")[[1]][1])))
+quarter <- unlist(lapply(files, function(x) as.integer(strsplit(strsplit(x, "/")[[1]][3], "\\q")[[1]][2])))
 directory <- unlist(files)
-survey <- data.frame(directory, database)
+survey <- data.frame(directory, database, year, quarter)
 survey %>%
 group_by(database) %>%
 summarise(count = n())
@@ -30,8 +32,20 @@ save(list = "survey", file = "./EPID600_Kwon_RData/all.directories.info")
 demo <- survey %>%
 filter(database == "demo")
 
-#Import data, catch errors to see what values are missing, export dataframes
-exclude <- c("death_dt", "confid", "image", "to_mfr", "foll_seq", "event_dt", "mfr_dt", "rept_cod", "auth_num", "mfr_num", "mfr_sndr", "rept_dt", "caseversion", "lit_ref", "age_grp", "occr_country", "init_fda_dt")
+#Define legacy data
+legacy <- demo %>%
+filter(year < 2013)
+legacy <- legacy[-c(nrow(legacy)),]
+
+#Add trailing $ to legacy headers, overwriting original data
+for (directory in legacy$directory) {
+  lines <- readLines(directory)
+  lines[1] <- paste0(lines[1], "$")
+  writeLines(lines, directory)
+}
+
+#Read in each file and collect some basic metrics
+exclude <- c("death_dt", "confid", "image", "to_mfr", "foll_seq", "event_dt", "mfr_dt", "rept_cod", "auth_num", "mfr_num", "mfr_sndr", "rept_dt", "caseversion", "lit_ref", "age_grp", "occr_country", "init_fda_dt", "x")
 cases <- list()
 columns <- list()
 failures <- list()
@@ -69,7 +83,7 @@ for (directory in demo$directory) {
   
   save(list = c("data"), file = paste0("./EPID600_Kwon_RData/Demo/", fname))
 }
-#Found that 2009Q3 data has an error where a row is prematurely terminated by newline. Manually fixed using vim. Moving on.
+#Found that 2009Q3 data has an error where a row is prematurely terminated by newline. Manually fixed using vim. Moving on. (line 53920)
 save(list = c("cases", "columns", "names"), file = "./EPID600_Kwon_RData/demo.general.info")
 
 #QC
