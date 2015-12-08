@@ -32,6 +32,34 @@ convertAge <- function(age, code) {
   return(result)
 }
 
+convertWt <- function(wt, code) {
+  result <- NA
+  if (code == "KG") {
+    result <- wt
+  } else if (code == "LBS") {
+    result <- wt / 2.2
+  } else if (code == "GMS") {
+    result <- wt / 1000
+  }
+  if(!is.na(result)) {
+    return(as.integer(result))
+  }
+  return(result)
+}
+
+assignWtLow <- function(wt) {
+  result <- NA
+  if (!(class(wt) == "numeric") & !(class(wt) == "integer")) {
+    return(result)
+  }
+  mod.100 <- wt %% 100
+  result <- as.integer(wt / 100) * 100
+  if (mod.100 >= 50) {
+    result <- result + 50
+  }
+  return(result)
+}
+
 #Import general info
 load("./EPID600_Kwon_RData/demo.general.info")
 
@@ -163,3 +191,176 @@ ggsave(p, file = "A7.AgeGenderDist.pdf", width = 7, height = 4)
 
 rm(list = c("by.age", "by.age.count", "by.gender", "by.age.gender"))
 gc()
+
+#Draw bar plot of follow-ups
+by.if <- demo %>%
+  filter(!is.na(i_f_cod)) %>%
+  filter(i_f_cod %in% c("I", "F"))
+
+by.if.count <- by.if %>%
+  group_by(i_f_cod) %>%
+  summarise(count = n())
+
+p <- ggplot(by.if.count, aes(x = i_f_cod, y = count, fill = i_f_cod)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Follow-up Distribution", x = "Follow-up Code", y = "Count")
+ggsave(p, file = "A8.FollowUpDist.pdf", width = 7, height = 4)
+
+by.if.gender <- by.if %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(i_f_cod, sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.if.gender, aes(x = i_f_cod, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Follow-ups by Gender", x = "Follow-up Code", y = "Count")
+ggsave(p, file = "A9.FollowUpGenderDist.pdf", width = 7, height = 4)
+
+rm(list = c("by.if", "by.if.count", "by.if.gender"))
+gc()
+
+#Draw bar plot of report provider occupation
+by.job <- demo %>%
+  filter(!is.na(occp_cod))
+
+by.job.count <- by.job %>%
+  group_by(occp_cod) %>%
+  summarise(count = n())
+
+by.job.gender <- by.job %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(occp_cod, sex) %>%
+  summarise(count = n())
+
+by.job.gender.pc <- by.job %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(sex, occp_cod) %>%
+  summarise(count = n()) %>%
+  mutate(percent = 100 *count / sum(count))
+
+by.job.male <- by.job.gender.pc %>%
+  filter(sex == "M")
+
+by.job.female <- by.job.gender.pc %>%
+  filter(sex == "F")
+
+p <- ggplot(by.job.count, aes(x = occp_cod, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Reporter Occupation Distribution", x = "Occupation Code", y = "Count")
+ggsave(p, file = "A10.JobDist.pdf", width = 7, height = 4)
+
+p <- ggplot(by.job.gender, aes(x = occp_cod, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Reporter Occupation by Gender", x = "Occupation Code", y = "Count")
+ggsave(p, file = "A11.JobGenderDist.pdf", width = 7, height = 4)
+
+p <- ggplot(by.job.male, aes(x = factor(1), y = percent, fill = occp_cod)) +
+geom_bar(width = 1, stat = "identity") +
+coord_polar("y", start = 0) +
+labs(title = "Reporter Occupation for Males", y = "Percent")
+ggsave(p, file = "A12.MaleReportJob.pdf", width = 7, height = 4)
+
+p <- ggplot(by.job.female, aes(x = factor(1), y = percent, fill = occp_cod)) +
+geom_bar(width = 1, stat = "identity") +
+coord_polar("y", start = 0) +
+labs(title = "Reporter Occupation for Females", y = "Percent")
+ggsave(p, file = "A13.FemaleReportJob.pdf", width = 7, height = 4)
+
+rm(list = c("by.job", "by.job.count", "by.job.gender", "by.job.gender.pc", "by.job.male", "by.job.female"))
+gc()
+
+#Draw bar graph for electronic submissions by year
+by.esub <- demo %>%
+  filter(!is.na(e_sub)) %>%
+  filter(e_sub %in% c("N", "Y"))
+
+by.esub.quarter <- by.esub %>%
+  group_by(year, quarter, e_sub) %>%
+  summarise(count = n())
+
+by.esub.year <- by.esub %>%
+  group_by(year, e_sub) %>%
+  summarise(count = n())
+
+by.esub.quarter$qname <- paste0(by.esub.quarter$year, "Q", by.esub.quarter$quarter)
+p <- ggplot(by.esub.quarter, aes(x = qname, y = count, fill = e_sub)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Electronic Submissions by Quarter", x = "Quarter", y = "Count") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+ggsave(p, file = "A14.QuarterlyEsubs.pdf", width = 7, height = 4)
+
+p <- ggplot(by.esub.year, aes(x = year, y = count, fill = e_sub)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Electronic Submissions by Year", x = "Year", y = "Count")
+ggsave(p, file = "A15.YearlyEsubs.pdf", width = 7, height = 4)
+
+rm(list = c("by.esub", "by.esub.quarter", "by.esub.year"))
+gc()
+
+#Draw bar graphs for weight
+by.wt <- demo %>%
+  filter(!is.na(wt)) %>%
+  filter(!is.na(wt_cod)) %>%
+  filter(wt_cod %in% c("KG", "LBS", "GMS"))
+
+by.wt$wt <- as.numeric(by.wt$wt)
+by.wt <- cbind(by.wt, wt_clean = mapply(convertWt, by.wt$wt, by.wt$wt_cod))
+
+#Too many wt and wt_cod errors in db. Had to set an upper bound just above the heaviest person in the world.
+by.wt <- by.wt %>%
+  filter(wt_clean < 700)
+  
+by.wt <- cbind(by.wt, wt_low = mapply(assignWtLow, by.wt$wt_clean))
+
+by.wt.count <- by.wt %>%
+  group_by(wt_clean) %>%
+  summarise(count = n())
+
+by.wt.low.count <- by.wt %>%
+  group_by(wt_low) %>%
+  summarise(count = n()) %>%
+  arrange(wt_low)
+
+by.wt.low.count$cat <- paste0(by.wt.low.count$wt_low, "-", by.wt.low.count$wt_low + 50)
+
+p <- ggplot(by.wt.count, aes(x = wt_clean, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Weight Distribution in Reports", x = "Weight (KG)", y = "Count")
+ggsave(p, file = "A16.WeightDist.pdf", width = 7, height = 4)
+
+p <- ggplot(by.wt.low.count, aes(x = wt_low, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Grouped Weight Distribution in Reports", x = "Weight Groups (KG)", y = "Count")
+ggsave(p, file = "A17.WeightCatDist.pdf", width = 7, height = 4)
+
+rm(list = c("by.wt", "by.wt.count", "by.wt.low.count"))
+gc()
+
+#Clean data for fitting
+all.fields <- demo %>%
+  filter(!is.na(i_f_cod)) %>%
+  filter(i_f_cod %in% c("I", "F")) %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  filter(!is.na(age)) %>%
+  filter(!is.na(age_cod)) %>%
+  filter(!is.na(wt)) %>%
+  filter(!is.na(wt_cod)) %>%
+  filter(wt_cod %in% c("KG", "LBS", "GMS"))
+
+all.fields$age <- as.numeric(all.fields$age)
+all.fields$wt <- as.numeric(all.fields$wt)
+
+all.fields <- all.fields %>%
+  filter(age >= 0)
+
+all.fields <- cbind(all.fields, age_yr = mapply(convertAge, all.fields$age, all.fields$age_cod))
+all.fields <- cbind(all.fields, wt_clean = mapply(convertWt, all.fields$wt, all.fields$wt_cod))
+
+all.fields <- all.fields %>%
+  filter(age_yr < 130) %>%
+  filter(wt_clean < 700)
+
