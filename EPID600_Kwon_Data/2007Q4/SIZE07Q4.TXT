@@ -1,0 +1,20 @@
+                       SIZE07Q4.TXT
+                                                    05APR08
+    
+Data file record counts and system file sizes
+Selection Time Period: 01-OCT-2007 to 31-DEC-2007(completed < 04/05/08)
+including received reports from 01-JUL-2007 to 30-SEP-2007
+where reports were completed between 15-JAN-2008 and 04/05/08
+    
+File Name               Records            System Size(Bytes) 
+----------------------------------------------------------------
+DEMO07Q4.TXT            109,892              15,071,232 
+DRUG07Q4.TXT            374,284              20,932,608 
+REAC07Q4.TXT            365,659              10,043,392 
+OUTC07Q4.TXT             91,912               1,287,168 
+RPSR07Q4.TXT             48,063                 673,280 
+THER07Q4.TXT            154,280               5,863,424 
+INDI07Q4.TXT            172,783               7,012,352 
+ADR07M10.SGM             30,832              73,239,040 
+ADR07M11.SGM             33,459              78,810,624 
+ADR07M12.SGM             45,601              94,612,992 

@@ -1,0 +1,20 @@
+                       SIZE04Q3.TXT
+                                                    11FEB05
+    
+Data file record counts and system file sizes
+Selection Time Period: 01-JUL-2004 to 30-SEP-2004(completed < 02/11/05)
+including received reports from 01-APR-2004 to 30-JUN-2004
+where reports were completed between 07-JAN-2005 and 02/11/05
+    
+File Name               Records            System Size(Bytes) 
+----------------------------------------------------------------
+DEMO04Q3.TXT             75,451               9,387,008 
+DRUG04Q3.TXT            273,499              15,012,352 
+REAC04Q3.TXT            291,222               8,072,192 
+OUTC04Q3.TXT             67,009                 938,496 
+RPSR04Q3.TXT             87,923               1,231,360 
+THER04Q3.TXT             95,638               3,638,784 
+INDI04Q3.TXT             95,375               3,739,136 
+ADR04M07.SGM             23,681              53,542,912 
+ADR04M08.SGM             22,431              51,044,352 
+ADR04M09.SGM             29,339              63,828,992 

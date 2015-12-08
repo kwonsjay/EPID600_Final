@@ -1,0 +1,20 @@
+                       SIZE10Q2.TXT
+                                                    27OCT10
+    
+Data file record counts and system file sizes
+Selection Time Period: 01-APR-2010 to 30-JUN-2010(completed < 10/27/10)
+including received reports from 01-JAN-2010 to 31-MAR-2010
+where reports were completed between 10-JUL-2010 and 10/27/10
+    
+File Name               Records            System Size(Bytes) 
+----------------------------------------------------------------
+DEMO10Q2.TXT            144,452              20,211,712 
+DRUG10Q2.TXT            576,941              32,312,832 
+REAC10Q2.TXT            550,274              14,983,168 
+OUTC10Q2.TXT            141,307               1,978,368 
+RPSR10Q2.TXT             37,098                 519,680 
+THER10Q2.TXT            240,728               9,282,560 
+INDI10Q2.TXT            278,476              11,537,408 
+ADR10M04.SGM             42,597             109,501,440 
+ADR10M05.SGM             46,466             116,200,960 
+ADR10M06.SGM             55,389             134,615,040 

@@ -1,0 +1,237 @@
+ 
+                 Freedom Of Information (ADE) Quarterly Data
+                                 STAT11Q2.TXT
+
+                                                                10OCT11
+
+Selection Time Period: 01-APR-2011 to 30-JUN-2011(completed < 10/10/11)
+including received reports from 01-JAN-2011 to 31-MAR-2011
+where reports were completed between 20-AUG-2011 and 10/10/11
+
+Null counts for selected data fields from Demographic file
+Column Name                   Total Count     Missing Count
+----------------------------------------------------------------------
+AGE                             194,310         61,984
+AGE_COD                         194,310         61,980
+CASE                            194,310              0
+EVENT_DT                        194,310         74,520
+FDA_DT                          194,310              0
+FOLL_SEQ                        194,310        190,609
+MFR_DT                          194,310          6,977
+MFR_NUM                         194,310          6,903
+MFR_SNDR                        194,310          6,894
+WT                              194,310        139,762
+WT_COD                          194,310        139,757
+REPT_DT                         194,310            343
+DEATH_DT                        194,310        194,310
+REPORTER_COUNTRY                194,310            352
+
+
+Null counts for selected data fields from Drug file
+Column Name                   Total Count     Missing Count
+----------------------------------------------------------------------
+DOSE_VBM                        755,482        403,505
+DRUGNAME                        755,482              0
+LOT_NUM                         755,482        682,611
+EXP_DT                          755,482        750,863
+NDA_NUM                         755,482        575,200
+
+
+Null counts for selected data fields from Indications file
+Column Name                   Total Count     Missing Count
+----------------------------------------------------------------------
+INDICATIONS                     350,475              0
+
+
+Null counts for selected data fields from Drug Therapy file
+Column Name                   Total Count     Missing Count
+----------------------------------------------------------------------
+END_DT                          332,980        164,405
+START_DT                        332,980         21,351
+DUR                             332,980        253,701
+DUR_COD                         332,980        253,505
+
+
+Null counts for selected data fields from Reaction file
+Column Name                   Total Count     Missing Count
+----------------------------------------------------------------------
+PT                              751,821              0
+ 
+
+
+Frequency counts for selected data fields from DEMO file
+E_SUB                             COUNT           PERCENT
+----------------------------------------------------------------------
+Y                               169,544             87
+N                                24,766             13
+
+GNDR_COD                          COUNT           PERCENT
+----------------------------------------------------------------------
+NULL                             12,908               .
+UNK                               2,010              1.11
+M                                67,231             37.06
+F                               112,149             61.82
+NS                                   12              0.01
+
+
+Frequency counts for selected data fields from DEMO file
+I_F_COD                          COUNT           PERCENT
+----------------------------------------------------------------------
+Followup                         61,143             31.47
+Initial                         133,167             68.53
+Unknown                               0              0.00
+
+REPT_COD                          COUNT           PERCENT
+----------------------------------------------------------------------
+DIR                               6,899              3.55
+EXP                             131,509             67.68
+PER                              55,902             28.77
+
+OCCP_COD                           COUNT           PERCENT
+----------------------------------------------------------------------
+MD                               49,362             25.40
+PH                                9,439              4.86
+OT                               36,570             18.82
+LW                               13,720              7.06
+CN                               76,005             39.12
+NULL                              9,214              4.74
+
+TO_MFR                            COUNT           PERCENT
+----------------------------------------------------------------------
+Y                                   834              0.43
+N                                 6,065              3.12
+NULL                            187,411             96.45
+
+CONFID                            COUNT           PERCENT
+----------------------------------------------------------------------
+Y                                 2,185              1.12
+N                                 4,714              2.43
+NULL                            187,411             96.45
+
+
+Frequency counts for selected data fields from DRUG file
+ROLE_COD                          COUNT           PERCENT
+----------------------------------------------------------------------
+PS                              194,310             25.72
+SS                              141,167             18.69
+C                               416,999             55.20
+I                                 3,006              0.40
+ 
+
+
+Frequency counts for selected data fields from DRUG file
+VAL_VBM                           COUNT           PERCENT
+----------------------------------------------------------------------
+Validated trade name used       599,602             79.37
+Verbatim name used              155,880             20.63
+
+ROUTE                             COUNT           PERCENT
+----------------------------------------------------------------------
+NULL                            352,959               .
+AURICULAR (OTIC)                     10              0.00
+BUCCAL                              393              0.10
+CUTANEOUS                           109              0.03
+DENTAL                               52              0.01
+ENDOCERVICAL                          1              0.00
+ENDOSINUSIAL                          6              0.00
+ENDOTRACHEAL                          8              0.00
+EPIDURAL                            119              0.03
+HEMODIALYSIS                         26              0.01
+INTRA CORPUS CAVERNOSUM               9              0.00
+INTRA-ARTERIAL                      156              0.04
+INTRA-ARTICULAR                      98              0.02
+INTRA-UTERINE                     1,994              0.50
+INTRACARDIAC                          2              0.00
+INTRACAVERNOUS                       42              0.01
+INTRACEREBRAL                         9              0.00
+INTRACERVICAL                         3              0.00
+INTRACORNEAL                          4              0.00
+INTRACORONARY                         8              0.00
+INTRADERMAL                          50              0.01
+INTRADISCAL (INTRASPINAL)             6              0.00
+INTRAHEPATIC                          8              0.00
+INTRALESIONAL                        61              0.02
+INTRAMEDULLAR (BONE MARROW)           1              0.00
+INTRAMENINGEAL                        4              0.00
+INTRAMUSCULAR                     9,420              2.34
+INTRAOCULAR                       1,618              0.40
+INTRAPERICARDIAL                      1              0.00
+INTRAPERITONEAL                   5,217              1.30
+INTRAPLEURAL                          4              0.00
+INTRASYNOVIAL                         4              0.00
+INTRATHECAL                         474              0.12
+INTRATHORACIC                        16              0.00
+INTRATRACHEAL                        36              0.01
+INTRATUMOR                            6              0.00
+INTRAVENOUS                      66,829             16.60
+INTRAVENOUS BOLUS                   693              0.17
+INTRAVENOUS DRIP                  6,176              1.53
+INTRAVESICAL                         75              0.02
+IONTOPHORESIS                         3              0.00
+NASAL                               987              0.25
+OCCLUSIVE DRESSING TECHNIQUE         29              0.01
+OPHTHALMIC                        1,171              0.29
+ORAL                            214,537             53.30
+OROPHARINGEAL                        78              0.02
+OTHER                               661              0.16
+PARENTERAL                        1,747              0.43
+PERIARTICULAR                         2              0.00
+ 
+PERINEURAL                           27              0.01
+RECTAL                              378              0.09
+RESPIRATORY (INHALATION)          5,616              1.40
+RETROBULBAR                           3              0.00
+SUBCONJUNCTIVAL                      26              0.01
+SUBCUTANEOUS                     22,253              5.53
+SUBDERMAL                            53              0.01
+SUBLINGUAL                          881              0.22
+TOPICAL                           2,382              0.59
+TRANSDERMAL                       6,582              1.64
+TRANSMAMMARY                        122              0.03
+TRANSPLACENTAL                    4,165              1.03
+UNKNOWN                          46,626             11.58
+URETHRAL                             13              0.00
+VAGINAL                             433              0.11
+
+DECHAL                            COUNT           PERCENT
+----------------------------------------------------------------------
+NULL                            733,210               .
+Y                                 6,411             28.79
+N                                 2,244             10.08
+U                                 1,388              6.23
+D                                12,229             54.91
+
+RECHAL                            COUNT           PERCENT
+----------------------------------------------------------------------
+NULL                            734,504               .
+Y                                   729              3.48
+N                                   460              2.19
+U                                 1,009              4.81
+D                                18,780             89.52
+
+
+Frequency counts for selected data fields from OUTC file
+OUTC_COD                          COUNT           PERCENT
+----------------------------------------------------------------------
+DE                               26,324             13.46
+LT                                7,467              3.82
+HO                               65,832             33.66
+DS                                8,871              4.54
+CA                                1,103              0.56
+OT                               84,699             43.30
+RI                                1,309              0.67
+
+
+Frequency counts for selected data fields from RPSR file
+RPSR_COD                          COUNT           PERCENT
+----------------------------------------------------------------------
+FGN                               5,985             16.76
+SDY                               1,504              4.21
+LIT                               2,726              7.63
+CSM                               6,232             17.45
+HP                               11,340             31.75
+UF                                   33              0.09
+CR                                1,612              4.51
+DT                                   56              0.16
+OTH                               6,230             17.44
+

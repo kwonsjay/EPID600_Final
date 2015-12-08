@@ -1,0 +1,20 @@
+                       SIZE06Q4.TXT
+                                                    19MAR07
+    
+Data file record counts and system file sizes
+Selection Time Period: 01-OCT-2006 to 31-DEC-2006(completed < 03/19/07)
+including received reports from 01-JUL-2006 to 30-SEP-2006
+where reports were completed between 08-DEC-2006 and 03/19/07
+    
+File Name               Records            System Size(Bytes) 
+----------------------------------------------------------------
+DEMO06Q4.TXT             83,229              11,279,360 
+DRUG06Q4.TXT            291,710              16,296,960 
+REAC06Q4.TXT            306,109               8,541,696 
+OUTC06Q4.TXT             77,493               1,084,928 
+RPSR06Q4.TXT             62,405                 873,984 
+THER06Q4.TXT            115,563               4,447,744 
+INDI06Q4.TXT            120,995               4,877,824 
+ADR06M10.SGM             27,286              64,478,720 
+ADR06M11.SGM             24,065              58,882,560 
+ADR06M12.SGM             31,878              68,583,424 

@@ -1,0 +1,20 @@
+                       SIZE11Q4.TXT
+                                                    03APR12
+    
+Data file record counts and system file sizes
+Selection Time Period: 01-OCT-2011 to 31-DEC-2011(completed < 04/03/12)
+including received reports from 01-JUL-2011 to 30-SEP-2011
+where reports were completed between 22-DEC-2011 and 04/03/12
+    
+File Name               Records            System Size(Bytes) 
+----------------------------------------------------------------
+DEMO11Q4.TXT            208,742              29,616,128 
+DRUG11Q4.TXT            735,967              41,585,152 
+REAC11Q4.TXT            774,170              21,020,672 
+OUTC11Q4.TXT            182,367               2,553,344 
+RPSR11Q4.TXT             35,140                 492,032 
+THER11Q4.TXT            323,319              12,359,680 
+INDI11Q4.TXT            363,005              14,934,016 
+ADR11M10.SGM             66,068             156,254,720 
+ADR11M11.SGM             74,450             172,063,744 
+ADR11M12.SGM             68,224             162,157,056 

@@ -1,0 +1,20 @@
+                       SIZE09Q3.TXT
+                                                    15JAN10
+    
+Data file record counts and system file sizes
+Selection Time Period: 01-JUL-2009 to 30-SEP-2009(completed < 01/15/10)
+including received reports from 01-APR-2009 to 30-JUN-2009
+where reports were completed between 09-OCT-2009 and 01/15/10
+    
+File Name               Records            System Size(Bytes) 
+----------------------------------------------------------------
+DEMO09Q3.TXT            130,072              18,220,544 
+DRUG09Q3.TXT            536,801              29,523,456 
+REAC09Q3.TXT            454,509              12,494,336 
+OUTC09Q3.TXT            118,230               1,655,296 
+RPSR09Q3.TXT             35,762                 500,736 
+THER09Q3.TXT            220,481               8,411,136 
+INDI09Q3.TXT            276,621              11,722,752 
+ADR09M07.SGM             40,965             100,751,872 
+ADR09M08.SGM             43,436             107,637,760 
+ADR09M09.SGM             45,671             114,585,088 
