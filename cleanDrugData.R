@@ -34,7 +34,7 @@ if (!flag) {
 }
 
 #Read in each file and collect some basic metrics
-exclude <- c("drug_seq", "prod_ai", "dose_vbm", "cum_dose_chr", "cum_dose_unit", "lot_num", "exp_dt", "nda_num", "dose_amt", "dose_unit", "dose_form", "dose_freq", "lot_nbr", "x")
+exclude <- c("caseid", "drug_seq", "prod_ai", "dose_vbm", "cum_dose_chr", "cum_dose_unit", "lot_num", "exp_dt", "nda_num", "dose_amt", "dose_unit", "dose_form", "dose_freq", "lot_nbr", "x")
 cases <- list()
 columns <- list()
 failures <- list()
@@ -56,7 +56,7 @@ for (directory in drug$directory) {
   
   #Standardize column names and remove/add those not needed/needed
   names(data) <- tolower(names(data))
-  # names(data)[names(data) == "isr"] <- "primaryid"
+  names(data)[names(data) == "isr"] <- "primaryid"
   data <- data[, !(names(data) %in% exclude)]
   
   #Collect general stats and QC-related information
