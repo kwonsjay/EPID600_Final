@@ -51,7 +51,7 @@ filter(year < 2013)
 legacy <- legacy[-c(nrow(legacy)),]
 
 #Add trailing $ to legacy headers, overwriting original data
-flag <- "clean.flag" %in% list.files("./EPID600_Kwon_Data", recursive = F)
+flag <- "clean.demo.flag" %in% list.files("./EPID600_Kwon_Data", recursive = F)
 if (!flag) {
   print("No flag. Adding trailing $ to legacy headers...")
   for (directory in legacy$directory) {
@@ -59,7 +59,7 @@ if (!flag) {
     lines[1] <- paste0(lines[1], "$")
     writeLines(lines, directory)
   }
-  save(list = "flag", file = "./EPID600_Kwon_Data/clean.flag")
+  save(list = "flag", file = "./EPID600_Kwon_Data/clean.demo.flag")
 } else {
   print("Flag observed. Skipping this step...")
 }
