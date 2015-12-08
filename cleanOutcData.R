@@ -34,7 +34,7 @@ if (!flag) {
 }
 
 #Read in each file and collect some basic metrics
-exclude <- c("caseid")
+exclude <- c("caseid", "x")
 cases <- list()
 columns <- list()
 failures <- list()
@@ -56,10 +56,8 @@ for (directory in outc$directory) {
   
   #Standardize column names and remove/add those not needed/needed
   names(data) <- tolower(names(data))
-  # names(data)[names(data) == "i_f_code"] <- "i_f_cod"
-  # names(data)[names(data) == "isr"] <- "primaryid"
-  # names(data)[names(data) == "case"] <- "caseid"
-  # names(data)[names(data) == "gndr_cod"] <- "sex"
+  names(data)[names(data) == "isr"] <- "primaryid"
+  names(data)[names(data) == "outc_code"] <- "outc_cod"
   data <- data[, !(names(data) %in% exclude)]
   
   #Collect general stats and QC-related information
@@ -80,5 +78,5 @@ for (name in colnames) {
     unique[length(unique) + 1] <- name
   }
 }
-print(length(unlist(unique)) == 12)
+print(length(unlist(unique)) == 2)
 
