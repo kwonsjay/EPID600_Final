@@ -201,7 +201,7 @@ by.if.count <- by.if %>%
   group_by(i_f_cod) %>%
   summarise(count = n())
 
-p <- ggplot(by.if.count, aes(x = i_f_cod, y = count, fill = i_f_cod)) +
+p <- ggplot(by.if.count, aes(x = i_f_cod, y = count)) +
 geom_bar(position = position_dodge(), stat = "identity") +
 labs(title = "Follow-up Distribution", x = "Follow-up Code", y = "Count")
 ggsave(p, file = "A8.FollowUpDist.pdf", width = 7, height = 4)

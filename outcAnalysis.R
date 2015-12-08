@@ -230,3 +230,13 @@ p <- ggplot(by.death.wt.cat, aes(x = wt_low, y = count, fill = death)) +
 geom_bar(position = position_dodge(), stat = "identity") +
 labs(title = "Death by Weight Category", x = "Weight (KG)", y = "Count")
 ggsave(p, file = "A26.DeathWtCat.pdf", width = 7, height = 4)
+
+#Death by follow-up
+by.death.fi <- joined %>%
+  group_by(i_f_cod, death) %>%
+  summarise(count = n())
+
+p <- ggplot(by.death.fi, aes(x = i_f_cod, y = count, fill = death)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Follow-up Category", x = "Follow-up Status", y = "Count")
+ggsave(p, file = "A27.DeathFI.pdf", width = 7, height = 4)
