@@ -1,0 +1,1459 @@
+---
+title: "EPID 600 Final Project"
+author: "Soon Jae Kwon"
+output: html_document
+---
+
+### Overview
+The goal of this project will be to perform some exploratory analysis of the FDA Adverse Events Reporting System (FAERS), and to mine trends in the data. Due to the limitations of obtaining data from OpenFDA, I will be using text data of quarterly reports from FDA Adverse Events Reporting System (FAERS) as well as from Legacy Adverse Events Reporting System (LAERS), downloaded as individual zip files from the FDA website. Because I had considered other project topics before settling for this one, the faculty members I met with may not pertain to this specific project topic. I met with Dr. Kyoung Jae Won from the department of Genentics to speak about how best to go about identifying binding biases of Tn5 transposase during ATAC-Sequencing. I also met with Dr. Grigory Yaroslatsev, a postdoctoral data science research fellow at the Warren Center to discuss data procurement (sources), and cleaning. Finally, I met with Dr. Blanca Himes in order to finally settle on the current topic and to discuss some of the possible analyses. All code, data, and results are included in my [github repository]("https://github.com/kwonsjay/EPID600_Final").  
+
+
+### Introduction 
+The main issue addressed by this project is the need for pharmacovigilance, which refers to monitoring the effects of drugs after their release into the market. Because modern diseases are becoming much more complicated, their treatments are also becoming more complex, as are regulations. A good way to illustrate this is to read regulations for drugs (synthetic small molecules), biologics (recombinant, but naturally-produced large molecules), and antibody-drug conjugates (ADC, a combination of small and large molecules for targeting and efficacy). The complexity of treatment increases from drug to ADC, and regulations are also more complex for biosimilars than they are for generics, because biosimilars produced by living cells tend not to be exactly the same, whereas generics have the same chemical composition as their drug counterparts. Further, as patients are often taking more than one kind of drug at a time, there is an increasing need to characterize drug-drug interactions and the interactivity of their metabolic products. This statement is true from the viewpoint of the FDA, as well as the consumers of drugs at large, and the motivation behind this investigation was, in part, to observe if this research was feasible from the consumer-end by using data supplied by the FDA. Ideally, we would be able to spot trends in perhaps the frequency of adverse events related to the combinatorial use of certain products, and even predict the likelihood of having an adverse event, given a patient's personal information.  
+
+This issue is intedisciplinary insofar as data science is interdisciplinary; by nature, the project combines medical data with programming and statistics. Understanding of biotechnology (drugs, biologics, and so forth) as well as demography contribute to this analysis, resulting in some interesting insights.
+
+### Methods
+The FAERS/LAERS data mentioned above are comprised of quarterly reports dating back to 2004. Each quarterly report comes as a compressed archive, which consists of at least 7 separate text files that describe the following: demographics, drug information, patient reaction, patient outcome, therapy information, report source, and drug indication. Further, each text file can have anywhere from 2 to 25 columns with detailed information on each case. Because the current and legacy reporting systems differ in format, adjustments will have to be made in order to use the legacy data in tandem with the current reporting data. All data downloading, cleaning, processing, and analysis were done using R, and the dplyr package was used to efficiently manipulate data frames consisting of up to 15 million rows. Once the data frames were cleaned, they were saved as local R workspace data in order bypass cleaning the data multiple times. The full code for downloading, cleaning, and analyzing code is provided below, and is also available on my [github page]("https://github.com/kwonsjay/EPID600_Final"). Please note that the code has been sectioned based on its function (downloading, cleaning, analysing), and further sub-sectioned based on the type of data (demographic, patient outcomes, etc.), so inevitably there will be repetition. Please also note that these scripts weren't created to be run on a terminal all at once. Some sections may need to be commented in and out based on what we're working with.   
+
+#### Download FAERS/LAERS Data
+```{r, eval = FALSE}
+#EPID600 Final Project
+#Jay (Soon Jae) Kwon
+
+#Import libraries
+library(XML)
+library(dplyr)
+
+#Define data sources
+source1 <- "http://www.fda.gov/Drugs/GuidanceComplianceRegulatoryInformation/Surveillance/AdverseDrugEffects/ucm082193.htm"
+source2 <- "http://www.fda.gov/Drugs/GuidanceComplianceRegulatoryInformation/Surveillance/AdverseDrugEffects/ucm083765.htm"
+
+#Define function to get valid links from url
+getValidLinks <- function(url) {
+  html <- htmlParse(url)
+  link <- unlist(xpathApply(html, "//a[@href]", xmlGetAttr, "href"))
+  text <- unlist(lapply(xpathApply(html, "//a[@href]", xmlValue, "href"), toupper))
+  results <- data.frame(link, text)
+  results <- results %>%
+  filter(grepl(".ZIP", text) & grepl("ASCII", text))
+  return(results)
+}
+
+#Download data
+links1 <- getValidLinks(source1)
+links2 <- getValidLinks(source2)
+links <- merge(links1, links2, all = T)
+
+dir.create("EPID600_Kwon_Downloads", showWarnings = F)
+
+for (i in 1:nrow(links)) {
+  link <- paste0("http://www.fda.gov", as.character(links[i, "link"]))
+  quarter <- strsplit(strsplit(as.character(links[i, "text"]), ".ZIP")[[1]][1], "_")[[1]][3]
+  if (is.na(quarter)) {
+    quarter <- strsplit(strsplit(as.character(links[i, "text"]), ".ZIP")[[1]][1], "\\s")[[1]][3]
+  }
+  dest <- paste0("EPID600_Kwon_Downloads/", quarter, ".zip")
+  print(paste0(i, " Downloading: ", quarter, " data..."))
+  download.file(url = link, destfile = dest, method = "curl")
+}
+```
+
+#### Mass Unzip and Standardize Directories
+```{r, eval = FALSE}
+#EPID600 Final Project
+#Jay (Soon Jae) Kwon
+
+#Define directories
+downloads <- "./EPID600_Kwon_Downloads/"
+extract <- "./EPID600_Kwon_Data/"
+
+#Unzip downloaded files into data directory
+dir.create(extract, showWarnings = F)
+files <- list.files(downloads)
+
+for (i in 1:length(files)) {
+  zip <- paste0(downloads, files[i])
+  dest <- paste0(extract, strsplit(files[i], ".zip")[[1]][1])
+  print(paste0(i, " Unzipping: ", files[i]))
+  unzip(zip, exdir = dest)
+}
+```
+
+#### Clean Demograhpics Data
+```{r, eval = FALSE}
+#EPID600 Final Project
+#Jay (Soon Jae) Kwon
+
+#Import libraries
+library(dplyr)
+
+#Country to ISO conversion function
+getISO <- function(country, table) {
+  result <- NA
+  if (!is.na(country)) {
+    iso <- table %>%
+    filter(Name == toupper(country))
+    if (dim(iso)[1] != 0) {
+      result <- as.character(iso$Code)
+    }
+  }
+  return(result)
+}
+
+#Create directories
+dir.create("EPID600_Kwon_RData", showWarnings = F)
+dir.create("EPID600_Kwon_RData/Demo", showWarnings = F)
+
+#Weed out irrelevant files
+files <- list.files("./EPID600_Kwon_Data", recursive = T, full.names = T)
+files <- lapply(files, tolower)
+files <- files[unlist(lapply(files, function(x) length(strsplit(x, "/")[[1]]) == 5))]
+files <- files[unlist(lapply(files, function(x) grepl(".txt", x)))]
+files <- files[unlist(lapply(files, function(x) strsplit(strsplit(x, "/")[[1]][5], "[0-9]")[[1]][1] != "stat"))]
+
+#Screener to see if all databases have been identified
+database <- unlist(lapply(files, function(x) strsplit(strsplit(x, "/")[[1]][5], "[0-9]")[[1]][1]))
+year <- unlist(lapply(files, function(x) as.integer(strsplit(strsplit(x, "/")[[1]][3], "\\q")[[1]][1])))
+quarter <- unlist(lapply(files, function(x) as.integer(strsplit(strsplit(x, "/")[[1]][3], "\\q")[[1]][2])))
+directory <- unlist(files)
+survey <- data.frame(directory, database, year, quarter)
+survey %>%
+group_by(database) %>%
+summarise(count = n())
+
+#Save clean directory/database survey to file
+save(list = "survey", file = "./EPID600_Kwon_RData/all.directories.info")
+
+#Select database of interest
+demo <- survey %>%
+filter(database == "demo")
+
+#Define legacy data
+legacy <- demo %>%
+filter(year < 2013)
+legacy <- legacy[-c(nrow(legacy)),]
+
+#Add trailing $ to legacy headers, overwriting original data
+flag <- "clean.demo.flag" %in% list.files("./EPID600_Kwon_Data", recursive = F)
+if (!flag) {
+  print("No flag. Adding trailing $ to legacy headers...")
+  for (directory in legacy$directory) {
+    lines <- readLines(directory)
+    lines[1] <- paste0(lines[1], "$")
+    writeLines(lines, directory)
+  }
+  save(list = "flag", file = "./EPID600_Kwon_Data/clean.demo.flag")
+} else {
+  print("Flag observed. Skipping this step...")
+}
+
+#Read in each file and collect some basic metrics
+exclude <- c("death_dt", "confid", "image", "to_mfr", "foll_seq", "event_dt", "mfr_dt", "rept_cod", "auth_num", "mfr_num", "mfr_sndr", "rept_dt", "caseversion", "lit_ref", "age_grp", "occr_country", "init_fda_dt", "x")
+cases <- list()
+columns <- list()
+failures <- list()
+names <- list()
+count <- 0
+
+for (directory in demo$directory) {
+  count <- count + 1
+  fname <-  paste0(strsplit(directory, "/")[[1]][3], "demo.RData")
+  error <- try(data <- read.table(directory, header = T, sep = "$", comment.char = "", quote = "", na.strings = c("")), silent = F)
+  
+  if (class(error) == "try-error") {
+    failures[[length(failures) + 1]] <- c(strsplit(directory, "/")[[1]][3], error[1])
+    cases[count] <- 0
+    columns[count] <- 0
+    names[[count]] <- "NA"
+    next
+  }
+  
+  #Standardize column names and remove/add those not needed/needed
+  names(data) <- tolower(names(data))
+  names(data)[names(data) == "i_f_code"] <- "i_f_cod"
+  names(data)[names(data) == "isr"] <- "primaryid"
+  names(data)[names(data) == "case"] <- "caseid"
+  names(data)[names(data) == "gndr_cod"] <- "sex"
+  data <- data[, !(names(data) %in% exclude)]
+  
+  if (!("reporter_country" %in% names(data))) {
+    data$reporter_country <- NA
+  }
+  
+  #Perform country code conversion
+  codes <- read.table("./iso.txt", header = T, sep = ",", quote = '\"', na.strings = c(""))
+  codes$Name <- toupper(codes$Name)
+  if (directory %in% legacy$directory) {
+    data$reporter_country <- unlist(lapply(data$reporter_country, function(x) getISO(as.character(x), codes)))
+    data$reporter_country <- as.factor(data$reporter_country)
+  }
+  
+  #Convert inconsistent column formats to factor
+  data$wt <- as.factor(data$wt)
+  
+  #Collect general stats and QC-related information
+  cases[count] <- dim(data)[1]
+  columns[[count]] <- c(strsplit(directory, "/")[[1]][3], dim(data)[2])
+  names[[count]] <- names(data)
+  
+  save(list = c("data"), file = paste0("./EPID600_Kwon_RData/Demo/", fname))
+}
+#Found that 2009Q3 data has an error where a row is prematurely terminated by newline. Manually fixed using vim. Moving on. (line 53920)
+save(list = c("cases", "columns", "names"), file = "./EPID600_Kwon_RData/demo.general.info")
+
+#QC
+names <- lapply(names, tolower)
+colnames <- unlist(names)
+unique <- list()
+for (name in colnames) {
+  if (!(name %in% unlist(unique))) {
+    unique[length(unique) + 1] <- name
+  }
+}
+print(length(unlist(unique)) == 12)
+```
+
+#### Analyze Demographics Data
+```{r, eval = FALSE}
+#EPID600 Final Project
+#Jay (Soon Jae) Kwon
+
+#Import libraries
+library(dplyr)
+library(rworldmap)
+library(ggplot2)
+library(maps)
+library(countrycode)
+
+#Define helper functions
+convertAge <- function(age, code) {
+  result <- NA
+  if (code == "DEC") {
+    result <- age * 10
+  } else if (code == "YR") {
+    result <- age
+  } else if (code == "MON") {
+    result <- age / 12
+  } else if (code == "WK") {
+    result <- age / 48
+  } else if (code == "DY") {
+    result <- age / 365
+  } else if (code == "HR") {
+    result <- age / (365 * 24)
+  } else if (code == "SEC") {
+    result <- age / (365 * 24 * 3600)
+  }
+  if (!is.na(result)) {
+    return(as.integer(result))
+  }
+  return(result)
+}
+
+convertWt <- function(wt, code) {
+  result <- NA
+  if (code == "KG") {
+    result <- wt
+  } else if (code == "LBS") {
+    result <- wt / 2.2
+  } else if (code == "GMS") {
+    result <- wt / 1000
+  }
+  if(!is.na(result)) {
+    return(as.integer(result))
+  }
+  return(result)
+}
+
+assignWtLow <- function(wt) {
+  result <- NA
+  if (!(class(wt) == "numeric") & !(class(wt) == "integer")) {
+    return(result)
+  }
+  mod.100 <- wt %% 100
+  result <- as.integer(wt / 100) * 100
+  if (mod.100 >= 50) {
+    result <- result + 50
+  }
+  return(result)
+}
+
+#Import general info
+load("./EPID600_Kwon_RData/demo.general.info")
+
+#This is the number of rows the merged dataframe should have
+Reduce("+", cases)
+
+#Merge demographic data
+directory <- list.files("./EPID600_Kwon_RData/Demo", recursive = T, full.names = T)
+year <- unlist(lapply(directory, function(x) strsplit(strsplit(x, "/")[[1]][4], "\\q")[[1]][1]))
+year <- as.integer(year)
+quarter <- unlist(lapply(directory, function(x) strsplit(strsplit(strsplit(x, "/")[[1]][4], "\\q")[[1]][2], "demo")[[1]][1]))
+quarter <- as.integer(quarter)
+files <- data.frame(directory, year, quarter)
+demo <- data.frame()
+
+for (i in 1:nrow(files)) {
+  load(as.character(files[i,]$directory))
+  data$year <- files[i,]$year
+  data$quarter <- files[i,]$quarter
+  demo <- rbind(demo, data)
+  rm(data)
+  gc()
+}
+
+#Save merged dataframe for later use
+save(list = "demo", file = "./EPID600_Kwon_RData/all.demographic.RData")
+
+#Load all demographics data into workspace
+#load("./EPID600_Kwon_RData/all.demographic.RData")
+
+#Draw world map of adverse event reports
+.pardefault <- par()
+
+regions <- demo %>%
+  filter(!is.na(reporter_country)) %>%
+  filter(nchar(as.character(reporter_country)) == 2) %>%
+  group_by(reporter_country) %>%
+  summarise(count = n())
+
+map <- map_data("world")
+map$reporter_country = countrycode(map$region, origin = "country.name", destination = "iso2c")
+world.map <- left_join(regions, map)
+p <- ggplot(world.map, aes(x = long, y = lat, group = group, fill = count)) +
+geom_polygon() + expand_limits(x = world.map$long, y = world.map$lat) +
+labs(title = "Report Density by Country", x = "Longitude", y = "Latitude")
+ggsave(p, file = "A1.WorldDensity.pdf", width = 7, height = 4)
+
+p <- ggplot(world.map, aes(x = long, y = lat, group = group, fill = log(count))) +
+geom_polygon() + expand_limits(x = world.map$long, y = world.map$lat) +
+labs(title = "Report Log Density by Country", x = "Longitude", y = "Latitude")
+ggsave(p, file = "A2.WorldDensityLog.pdf", width = 7, height = 4)
+
+rm(list = c("map", "world.map", "regions"))
+gc()
+
+#Draw bar plot of adverse event reports
+by.quarter <- demo %>%
+  group_by(year, quarter) %>%
+  summarise(count = n())
+  
+by.quarter$qname <- paste0(by.quarter$year, "Q", by.quarter$quarter)
+p <- ggplot(by.quarter, aes(x = qname, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Total Reports by Quarter", x = "Quarter", y = "Count") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+ggsave(p, file = "A3.QuarterlyReports.pdf", width = 7, height = 4)
+
+by.year <- demo %>%
+  group_by(year) %>%
+  summarise(count = n())
+  
+p <- ggplot(by.year, aes(x = year, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Total Reports by Year", x = "Year", y = "Count")
+ggsave(p, file = "A4.YearlyReports.pdf", width = 7, height = 4)
+
+rm(list = c("by.quarter", "by.year"))
+gc()
+
+#Draw bar plot of age distribution
+by.age <- demo %>%
+  filter(!is.na(age)) %>%
+  filter(!is.na(age_cod))
+
+by.age$age <- as.numeric(by.age$age)
+
+#Weed out negative age values
+by.age <- by.age %>%
+  filter(age >= 0)
+
+by.age <- cbind(by.age, age_yr = mapply(convertAge, by.age$age, by.age$age_cod))
+
+#Too many age and age_cod errors in db. Had to set an upper bound just above the oldest person in the world.
+by.age <- by.age %>%
+  filter(age_yr < 130)
+
+by.age.count <- by.age %>%
+  group_by(age_yr) %>%
+  summarise(count = n())
+
+p <- ggplot(by.age.count, aes(x = age_yr, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Age Distribution in Reports", x = "Age", y = "Count")
+ggsave(p, file = "A5.AgeDist.pdf", width = 7, height = 4)
+
+#Draw bar plot of gender distribution
+by.gender <- demo %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.gender, aes(x = sex, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Gender Distribution in Reports", x = "Gender", y = "Count")
+ggsave(p, file = "A6.GenderDist.pdf", width = 7, height = 4)
+
+#Draw bar plot of gender distribution in age groups
+by.age.gender <- by.age %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(age_yr, sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.age.gender, aes(x = age_yr, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Age Distribution of Reports by Gender", x = "Age", y = "Count")
+ggsave(p, file = "A7.AgeGenderDist.pdf", width = 7, height = 4)
+
+rm(list = c("by.age", "by.age.count", "by.gender", "by.age.gender"))
+gc()
+
+#Draw bar plot of follow-ups
+by.if <- demo %>%
+  filter(!is.na(i_f_cod)) %>%
+  filter(i_f_cod %in% c("I", "F"))
+
+by.if.count <- by.if %>%
+  group_by(i_f_cod) %>%
+  summarise(count = n())
+
+p <- ggplot(by.if.count, aes(x = i_f_cod, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Follow-up Distribution", x = "Follow-up Code", y = "Count")
+ggsave(p, file = "A8.FollowUpDist.pdf", width = 7, height = 4)
+
+by.if.gender <- by.if %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(i_f_cod, sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.if.gender, aes(x = i_f_cod, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Follow-ups by Gender", x = "Follow-up Code", y = "Count")
+ggsave(p, file = "A9.FollowUpGenderDist.pdf", width = 7, height = 4)
+
+rm(list = c("by.if", "by.if.count", "by.if.gender"))
+gc()
+
+#Draw bar plot of report provider occupation
+by.job <- demo %>%
+  filter(!is.na(occp_cod))
+
+by.job.count <- by.job %>%
+  group_by(occp_cod) %>%
+  summarise(count = n())
+
+by.job.gender <- by.job %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(occp_cod, sex) %>%
+  summarise(count = n())
+
+by.job.gender.pc <- by.job %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(sex, occp_cod) %>%
+  summarise(count = n()) %>%
+  mutate(percent = 100 *count / sum(count))
+
+by.job.male <- by.job.gender.pc %>%
+  filter(sex == "M")
+
+by.job.female <- by.job.gender.pc %>%
+  filter(sex == "F")
+
+p <- ggplot(by.job.count, aes(x = occp_cod, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Reporter Occupation Distribution", x = "Occupation Code", y = "Count")
+ggsave(p, file = "A10.JobDist.pdf", width = 7, height = 4)
+
+p <- ggplot(by.job.gender, aes(x = occp_cod, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Reporter Occupation by Gender", x = "Occupation Code", y = "Count")
+ggsave(p, file = "A11.JobGenderDist.pdf", width = 7, height = 4)
+
+p <- ggplot(by.job.male, aes(x = factor(1), y = percent, fill = occp_cod)) +
+geom_bar(width = 1, stat = "identity") +
+coord_polar("y", start = 0) +
+labs(title = "Reporter Occupation for Males", y = "Percent")
+ggsave(p, file = "A12.MaleReportJob.pdf", width = 7, height = 4)
+
+p <- ggplot(by.job.female, aes(x = factor(1), y = percent, fill = occp_cod)) +
+geom_bar(width = 1, stat = "identity") +
+coord_polar("y", start = 0) +
+labs(title = "Reporter Occupation for Females", y = "Percent")
+ggsave(p, file = "A13.FemaleReportJob.pdf", width = 7, height = 4)
+
+rm(list = c("by.job", "by.job.count", "by.job.gender", "by.job.gender.pc", "by.job.male", "by.job.female"))
+gc()
+
+#Draw bar graph for electronic submissions by year
+by.esub <- demo %>%
+  filter(!is.na(e_sub)) %>%
+  filter(e_sub %in% c("N", "Y"))
+
+by.esub.quarter <- by.esub %>%
+  group_by(year, quarter, e_sub) %>%
+  summarise(count = n())
+
+by.esub.year <- by.esub %>%
+  group_by(year, e_sub) %>%
+  summarise(count = n())
+
+by.esub.quarter$qname <- paste0(by.esub.quarter$year, "Q", by.esub.quarter$quarter)
+p <- ggplot(by.esub.quarter, aes(x = qname, y = count, fill = e_sub)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Electronic Submissions by Quarter", x = "Quarter", y = "Count") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+ggsave(p, file = "A14.QuarterlyEsubs.pdf", width = 7, height = 4)
+
+p <- ggplot(by.esub.year, aes(x = year, y = count, fill = e_sub)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Electronic Submissions by Year", x = "Year", y = "Count")
+ggsave(p, file = "A15.YearlyEsubs.pdf", width = 7, height = 4)
+
+rm(list = c("by.esub", "by.esub.quarter", "by.esub.year"))
+gc()
+
+#Draw bar graphs for weight
+by.wt <- demo %>%
+  filter(!is.na(wt)) %>%
+  filter(!is.na(wt_cod)) %>%
+  filter(wt_cod %in% c("KG", "LBS", "GMS"))
+
+by.wt$wt <- as.numeric(by.wt$wt)
+by.wt <- cbind(by.wt, wt_clean = mapply(convertWt, by.wt$wt, by.wt$wt_cod))
+
+#Too many wt and wt_cod errors in db. Had to set an upper bound just above the heaviest person in the world.
+by.wt <- by.wt %>%
+  filter(wt_clean < 700)
+  
+by.wt <- cbind(by.wt, wt_low = mapply(assignWtLow, by.wt$wt_clean))
+
+by.wt.count <- by.wt %>%
+  group_by(wt_clean) %>%
+  summarise(count = n())
+
+by.wt.low.count <- by.wt %>%
+  group_by(wt_low) %>%
+  summarise(count = n()) %>%
+  arrange(wt_low)
+
+by.wt.low.count$cat <- paste0(by.wt.low.count$wt_low, "-", by.wt.low.count$wt_low + 50)
+
+p <- ggplot(by.wt.count, aes(x = wt_clean, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Weight Distribution in Reports", x = "Weight (KG)", y = "Count")
+ggsave(p, file = "A16.WeightDist.pdf", width = 7, height = 4)
+
+p <- ggplot(by.wt.low.count, aes(x = wt_low, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Grouped Weight Distribution in Reports", x = "Weight Groups (KG)", y = "Count")
+ggsave(p, file = "A17.WeightCatDist.pdf", width = 7, height = 4)
+
+rm(list = c("by.wt", "by.wt.count", "by.wt.low.count"))
+gc()
+
+#Clean data for fitting
+all.fields <- demo %>%
+  filter(!is.na(i_f_cod)) %>%
+  filter(i_f_cod %in% c("I", "F")) %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  filter(!is.na(age)) %>%
+  filter(!is.na(age_cod)) %>%
+  filter(!is.na(wt)) %>%
+  filter(!is.na(wt_cod)) %>%
+  filter(wt_cod %in% c("KG", "LBS", "GMS"))
+
+all.fields$age <- as.numeric(all.fields$age)
+all.fields$wt <- as.numeric(all.fields$wt)
+
+all.fields <- all.fields %>%
+  filter(age >= 0)
+
+all.fields <- cbind(all.fields, age_yr = mapply(convertAge, all.fields$age, all.fields$age_cod))
+all.fields <- cbind(all.fields, wt_clean = mapply(convertWt, all.fields$wt, all.fields$wt_cod))
+
+all.fields <- all.fields %>%
+  filter(age_yr < 130) %>%
+  filter(wt_clean < 700)
+```
+
+
+#### Clean Patient Outcomes Data
+```{r, eval = FALSE}
+#EPID600 Final Project
+#Jay (Soon Jae) Kwon
+
+#Import libraries
+library(dplyr)
+
+#Create directories
+dir.create("EPID600_Kwon_RData/Outc", showWarnings = F)
+
+#Load clean directory/database survey from file
+load("./EPID600_Kwon_RData/all.directories.info")
+
+#Select database of interest
+outc <- survey %>%
+filter(database == "outc")
+
+#Define legacy data
+legacy <- outc %>%
+filter(year < 2013)
+legacy <- legacy[-c(nrow(legacy)),]
+
+#Add trailing $ to legacy headers, overwriting original data
+flag <- "clean.outc.flag" %in% list.files("./EPID600_Kwon_Data", recursive = F)
+if (!flag) {
+  print("No flag. Adding trailing $ to legacy headers...")
+  for (directory in legacy$directory) {
+    lines <- readLines(directory)
+    lines[1] <- paste0(lines[1], "$")
+    writeLines(lines, directory)
+  }
+  save(list = "flag", file = "./EPID600_Kwon_Data/clean.outc.flag")
+} else {
+  print("Flag observed. Skipping this step...")
+}
+
+#Read in each file and collect some basic metrics
+exclude <- c("caseid", "x")
+cases <- list()
+columns <- list()
+failures <- list()
+names <- list()
+count <- 0
+
+for (directory in outc$directory) {
+  count <- count + 1
+  fname <-  paste0(strsplit(directory, "/")[[1]][3], "outc.RData")
+  error <- try(data <- read.table(directory, header = T, sep = "$", comment.char = "", quote = "", na.strings = c("")), silent = F)
+  
+  if (class(error) == "try-error") {
+    failures[[length(failures) + 1]] <- c(strsplit(directory, "/")[[1]][3], error[1])
+    cases[count] <- 0
+    columns[count] <- 0
+    names[[count]] <- "NA"
+    next
+  }
+  
+  #Standardize column names and remove/add those not needed/needed
+  names(data) <- tolower(names(data))
+  names(data)[names(data) == "isr"] <- "primaryid"
+  names(data)[names(data) == "outc_code"] <- "outc_cod"
+  data <- data[, !(names(data) %in% exclude)]
+  
+  #Collect general stats and QC-related information
+  cases[count] <- dim(data)[1]
+  columns[[count]] <- c(strsplit(directory, "/")[[1]][3], dim(data)[2])
+  names[[count]] <- names(data)
+  
+  save(list = c("data"), file = paste0("./EPID600_Kwon_RData/Outc/", fname))
+}
+save(list = c("cases", "columns", "names"), file = "./EPID600_Kwon_RData/outc.general.info")
+
+#QC
+names <- lapply(names, tolower)
+colnames <- unlist(names)
+unique <- list()
+for (name in colnames) {
+  if (!(name %in% unlist(unique))) {
+    unique[length(unique) + 1] <- name
+  }
+}
+print(length(unlist(unique)) == 2)
+```
+
+#### Analyze Patient Outcomes Data
+```{r, eval = FALSE}
+#EPID600 Final Project
+#Jay (Soon Jae) Kwon
+
+#Import libraries
+library(dplyr)
+library(ggplot2)
+
+#Define helper functions
+convertAge <- function(age, code) {
+  result <- NA
+  if (code == "DEC") {
+    result <- age * 10
+  } else if (code == "YR") {
+    result <- age
+  } else if (code == "MON") {
+    result <- age / 12
+  } else if (code == "WK") {
+    result <- age / 48
+  } else if (code == "DY") {
+    result <- age / 365
+  } else if (code == "HR") {
+    result <- age / (365 * 24)
+  } else if (code == "SEC") {
+    result <- age / (365 * 24 * 3600)
+  }
+  if (!is.na(result)) {
+    return(as.integer(result))
+  }
+  return(result)
+}
+
+convertWt <- function(wt, code) {
+  result <- NA
+  if (code == "KG") {
+    result <- wt
+  } else if (code == "LBS") {
+    result <- wt / 2.2
+  } else if (code == "GMS") {
+    result <- wt / 1000
+  }
+  if(!is.na(result)) {
+    return(as.integer(result))
+  }
+  return(result)
+}
+
+assignWtLow <- function(wt) {
+  result <- NA
+  if (!(class(wt) == "numeric") & !(class(wt) == "integer")) {
+    return(result)
+  }
+  mod.100 <- wt %% 100
+  result <- as.integer(wt / 100) * 100
+  if (mod.100 >= 50) {
+    result <- result + 50
+  }
+  return(result)
+}
+
+#Import general info
+load("./EPID600_Kwon_RData/outc.general.info")
+
+#This is the number of rows the merged dataframe should have
+Reduce("+", cases)
+
+#Merge patient outcome data
+directory <- list.files("./EPID600_Kwon_RData/Outc", recursive = T, full.names = T)
+year <- unlist(lapply(directory, function(x) strsplit(strsplit(x, "/")[[1]][4], "\\q")[[1]][1]))
+year <- as.integer(year)
+quarter <- unlist(lapply(directory, function(x) strsplit(strsplit(strsplit(x, "/")[[1]][4], "\\q")[[1]][2], "outc")[[1]][1]))
+quarter <- as.integer(quarter)
+files <- data.frame(directory, year, quarter)
+outc <- data.frame()
+
+for (i in 1:nrow(files)) {
+  load(as.character(files[i,]$directory))
+  data$year <- files[i,]$year
+  data$quarter <- files[i,]$quarter
+  outc <- rbind(outc, data)
+  rm(data)
+  gc()
+}
+
+#Save merged dataframe for later use
+save(list = "outc", file = "./EPID600_Kwon_RData/all.outcomes.RData")
+
+#Load all demographics data into workspace
+#load("./EPID600_Kwon_RData/all.outcomes.RData")
+
+#Draw bar plot of outcomes
+by.outcome <- outc %>%
+  filter(!is.na(outc_cod)) %>%
+  group_by(outc_cod) %>%
+  summarise(count = n())
+
+p <- ggplot(by.outcome, aes(x = outc_cod, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Total Outcomes Distribution", x = "Outcomes", y = "Count")
+ggsave(p, file = "A18.OutcDist.pdf", width = 7, height = 4)
+
+#Deaths by quarter
+by.death.quarter <- outc %>%
+  filter(outc_cod == "DE") %>%
+  group_by(year, quarter) %>%
+  summarise(count = n())
+
+by.death.quarter$qname <- paste0(by.death.quarter$year, "Q", by.death.quarter$quarter)
+
+p <- ggplot(by.death.quarter, aes(x = qname, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Deaths per Quarter", x = "Quarter", y = "Count") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+ggsave(p, file = "A19.DeathQuarter.pdf", width = 7, height = 4)
+
+#Deaths by year
+by.death.year <- outc %>%
+  filter(outc_cod == "DE") %>%
+  group_by(year) %>%
+  summarise(count = n())
+
+p <- ggplot(by.death.year, aes(x = year, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Deaths per Year", x = "Year", y = "Count")
+ggsave(p, file = "A20.DeathYear.pdf", width = 7, height = 4)
+
+#Hospitalizations by quarter
+by.ho.quarter <- outc %>%
+  filter(outc_cod == "HO") %>%
+  group_by(year, quarter) %>%
+  summarise(count = n())
+
+by.ho.quarter$qname <- paste0(by.ho.quarter$year, "Q", by.ho.quarter$quarter)
+
+p <- ggplot(by.ho.quarter, aes(x = qname, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Hospitalizations per Quarter", x = "Quarter", y = "Count") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+ggsave(p, file = "A21.HospQuarter.pdf", width = 7, height = 4)
+
+#Hospitalizations by year
+by.ho.year <- outc %>%
+  filter(outc_cod == "HO") %>%
+  group_by(year) %>%
+  summarise(count = n())
+
+p <- ggplot(by.ho.year, aes(x = year, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Hospitalizations per Year", x = "Year", y = "Count")
+ggsave(p, file = "A22.HospYear.pdf", width = 7, height = 4)
+
+#Join outcomes to demographics data
+load("./EPID600_Kwon_RData/all.demographic.RData")
+joined <- left_join(demo, outc, by = "primaryid")
+joined <- joined %>%
+  filter(!is.na(outc_cod)) %>%
+  filter(!is.na(i_f_cod)) %>%
+  filter(i_f_cod %in% c("I", "F")) %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  filter(!is.na(age)) %>%
+  filter(!is.na(age_cod)) %>%
+  filter(!is.na(wt)) %>%
+  filter(!is.na(wt_cod)) %>%
+  filter(wt_cod %in% c("KG", "LBS", "GMS"))
+
+joined <- joined[, !(names(joined) %in% c("reporter_country", "caseid", "fda_dt", "year.y", "quarter.y"))]
+
+joined$age <- as.numeric(joined$age)
+joined$wt <- as.numeric(joined$wt)
+
+joined <- joined %>%
+  filter(age >= 0)
+
+joined <- cbind(joined, age_yr = mapply(convertAge, joined$age, joined$age_cod))
+joined <- cbind(joined, wt_clean = mapply(convertWt, joined$wt, joined$wt_cod))
+
+joined <- joined %>%
+  filter(age_yr < 130) %>%
+  filter(wt_clean < 700)
+
+joined$death <- sapply(joined$outc_cod, function(x) ifelse(x == "DE", 1, 0))
+joined$i_f_cod <- sapply(joined$i_f_cod, function(x) ifelse(x == "F", 1, 0))
+
+save(list = "joined", file = "./EPID600_Kwon_RData/join.demo.outc.clean.RData")
+
+#Observe some correlations
+chisq.test(table(joined$death, joined$age_yr))
+chisq.test(table(joined$death, joined$wt_clean))
+chisq.test(table(joined$death, joined$i_f_cod))
+
+#Death by gender
+by.death.gender <- joined %>%
+  group_by(death, sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.death.gender, aes(x = death, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Gender", x = "State", y = "Count")
+ggsave(p, file = "A23.DeathGender.pdf", width = 7, height = 4)
+
+#Death by age
+by.death.age <- joined %>%
+  group_by(age_yr, death) %>%
+  summarise(count = n())
+
+p <- ggplot(by.death.age, aes(x = age_yr, y = count, fill = death)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Age", x = "Age", y = "Count")
+ggsave(p, file = "A24.DeathAge.pdf", width = 7, height = 4)
+
+#Death by weight
+by.death.wt <- joined %>%
+  group_by(wt_clean, death) %>%
+  summarise(count = n())
+
+p <- ggplot(by.death.wt, aes(x = wt_clean, y = count, fill = death)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Weight", x = "Weight (KG)", y = "Count")
+ggsave(p, file = "A25.DeathWt.pdf", width = 7, height = 4)
+
+#Death by weight group
+joined <- cbind(joined, wt_low = mapply(assignWtLow, joined$wt_clean))
+
+by.death.wt.cat <- joined %>%
+  group_by(wt_low, death) %>%
+  summarise(count = n()) %>%
+  arrange(wt_low)
+
+p <- ggplot(by.death.wt.cat, aes(x = wt_low, y = count, fill = death)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Weight Category", x = "Weight (KG)", y = "Count")
+ggsave(p, file = "A26.DeathWtCat.pdf", width = 7, height = 4)
+
+#Death by follow-up
+by.death.fi <- joined %>%
+  group_by(i_f_cod, death) %>%
+  summarise(count = n())
+
+p <- ggplot(by.death.fi, aes(x = i_f_cod, y = count, fill = death)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Follow-up Category", x = "Follow-up Status", y = "Count")
+ggsave(p, file = "A27.DeathFI.pdf", width = 7, height = 4)
+```
+
+#### Clean Drug Information Data
+```{r, eval = FALSE}
+#EPID600 Final Project
+#Jay (Soon Jae) Kwon
+
+#Import libraries
+library(dplyr)
+
+#Create directories
+dir.create("EPID600_Kwon_RData/Drug", showWarnings = F)
+
+#Load clean directory/database survey from file
+load("./EPID600_Kwon_RData/all.directories.info")
+
+#Select database of interest
+drug <- survey %>%
+  filter(database == "drug")
+
+#Define legacy data
+legacy <- drug %>%
+  filter(year < 2013)
+  legacy <- legacy[-c(nrow(legacy)),]
+
+#Add trailing $ to legacy headers, overwriting original data
+flag <- "clean.drug.flag" %in% list.files("./EPID600_Kwon_Data", recursive = F)
+if (!flag) {
+  print("No flag. Adding trailing $ to legacy headers...")
+  for (directory in legacy$directory) {
+    lines <- readLines(directory)
+    lines[1] <- paste0(lines[1], "$")
+    writeLines(lines, directory)
+  }
+  save(list = "flag", file = "./EPID600_Kwon_Data/clean.drug.flag")
+} else {
+  print("Flag observed. Skipping this step...")
+}
+
+#Read in each file and collect some basic metrics
+exclude <- c("caseid", "drug_seq", "prod_ai", "dose_vbm", "cum_dose_chr", "cum_dose_unit", "lot_num", "exp_dt", "nda_num", "dose_amt", "dose_unit", "dose_form", "dose_freq", "lot_nbr", "x")
+cases <- list()
+columns <- list()
+failures <- list()
+names <- list()
+count <- 0
+
+for (directory in drug$directory) {
+  count <- count + 1
+  fname <-  paste0(strsplit(directory, "/")[[1]][3], "drug.RData")
+  error <- try(data <- read.table(directory, header = T, sep = "$", comment.char = "", quote = "", na.strings = c("")), silent = F)
+  
+  if (class(error) == "try-error") {
+    failures[[length(failures) + 1]] <- c(directory, error[1])
+    cases[count] <- 0
+    columns[count] <- 0
+    names[[count]] <- "NA"
+    next
+  }
+  
+  #Standardize column names and remove/add those not needed/needed
+  names(data) <- tolower(names(data))
+  names(data)[names(data) == "isr"] <- "primaryid"
+  data <- data[, !(names(data) %in% exclude)]
+  
+  #Collect general stats and QC-related information
+  cases[count] <- dim(data)[1]
+  columns[[count]] <- c(strsplit(directory, "/")[[1]][3], dim(data)[2])
+  names[[count]] <- names(data)
+  
+  save(list = c("data"), file = paste0("./EPID600_Kwon_RData/Drug/", fname))
+}
+save(list = c("cases", "columns", "names"), file = "./EPID600_Kwon_RData/drug.general.info")
+
+#QC
+names <- lapply(names, tolower)
+colnames <- unlist(names)
+unique <- list()
+for (name in colnames) {
+  if (!(name %in% unlist(unique))) {
+    unique[length(unique) + 1] <- name
+  }
+}
+print(length(unlist(unique)) == 7)
+```
+
+#### Partially Analyze Drug Information Data
+```{r, eval = FALSE}
+#EPID600 Final Project
+#Jay (Soon Jae) Kwon
+
+#Import libraries
+library(dplyr)
+library(ggplot2)
+
+#Merge drug data
+directory <- list.files("./EPID600_Kwon_RData/Drug", recursive = T, full.names = T)
+year <- unlist(lapply(directory, function(x) strsplit(strsplit(x, "/")[[1]][4], "\\q")[[1]][1]))
+year <- as.integer(year)
+quarter <- unlist(lapply(directory, function(x) strsplit(strsplit(strsplit(x, "/")[[1]][4], "\\q")[[1]][2], "drug")[[1]][1]))
+quarter <- as.integer(quarter)
+files <- data.frame(directory, year, quarter)
+drug <- data.frame()
+
+for (i in 1:nrow(files)) {
+  load(as.character(files[i,]$directory))
+  data$year <- files[i,]$year
+  data$quarter <- files[i,]$quarter
+  drug <- rbind(drug, data)
+  rm(data)
+  gc()
+}
+
+#Save merged dataframe for later use
+save(list = "drug", file = "./EPID600_Kwon_RData/partial.drug.RData")
+
+top <- drug %>%
+  filter(!is.na(drugname)) %>%
+  group_by(drugname) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  top_n(10)
+
+ps <- drug %>%
+  filter(!is.na(drugname)) %>%
+  filter(!is.na(role_cod)) %>%
+  filter(role_cod == "PS") %>%
+  group_by(drugname) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  top_n(10)
+```
+
+### Results
+```{r, include = FALSE}
+library(dplyr)
+library(rworldmap)
+library(ggplot2)
+library(maps)
+library(countrycode)
+```  
+
+
+After receiving feedback from the in-class presentation, I decided to remove certain items from inclusion in the results section. Only results I found to be interesting were included.  
+
+To give an overview of the results, most are plots that describe certain patterns in the FAERS/LAERS data, with comparisons in areas I thought were interesting. As I did more exploratory analysis of the data, I eventually decided to observe what factors were significantly related to the patient outcome of "death". Given that the FAERS/LAERS data only contain information on patients who have experienced adverse effects, there was no control group to compare against, so this was a case-only analysis.  
+
+Some helper functions are defined first.  
+
+
+```{r}
+#Define helper functions
+convertAge <- function(age, code) {
+  result <- NA
+  if (code == "DEC") {
+    result <- age * 10
+  } else if (code == "YR") {
+    result <- age
+  } else if (code == "MON") {
+    result <- age / 12
+  } else if (code == "WK") {
+    result <- age / 48
+  } else if (code == "DY") {
+    result <- age / 365
+  } else if (code == "HR") {
+    result <- age / (365 * 24)
+  } else if (code == "SEC") {
+    result <- age / (365 * 24 * 3600)
+  }
+  if (!is.na(result)) {
+    return(as.integer(result))
+  }
+  return(result)
+}
+
+convertWt <- function(wt, code) {
+  result <- NA
+  if (code == "KG") {
+    result <- wt
+  } else if (code == "LBS") {
+    result <- wt / 2.2
+  } else if (code == "GMS") {
+    result <- wt / 1000
+  }
+  if(!is.na(result)) {
+    return(as.integer(result))
+  }
+  return(result)
+}
+
+assignWtLow <- function(wt) {
+  result <- NA
+  if (!(class(wt) == "numeric") & !(class(wt) == "integer")) {
+    return(result)
+  }
+  mod.100 <- wt %% 100
+  result <- as.integer(wt / 100) * 100
+  if (mod.100 >= 50) {
+    result <- result + 50
+  }
+  return(result)
+}
+```
+  
+  
+First, the cleaned demographics data was used to draw a global heatmap of reports per country.
+```{r}
+#Load demographic data from disk
+load("./EPID600_Kwon_RData/all.demographic.RData")
+
+#Draw world map of adverse event reports
+.pardefault <- par()
+
+regions <- demo %>%
+  filter(!is.na(reporter_country)) %>%
+  filter(nchar(as.character(reporter_country)) == 2) %>%
+  group_by(reporter_country) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+#Output of counts per region
+regions
+
+#Draw Map
+map <- map_data("world")
+map$reporter_country = countrycode(map$region, origin = "country.name", destination = "iso2c")
+world.map <- left_join(regions, map)
+p <- ggplot(world.map, aes(x = long, y = lat, group = group, fill = count)) +
+geom_polygon() + expand_limits(x = world.map$long, y = world.map$lat) +
+labs(title = "Report Density by Country", x = "Longitude", y = "Latitude")
+p
+```
+  
+  
+From the regions data frame, we can see that a total of 216 regions are represented in the adverse events reporting system, and that while some of them have hundreds of thousands of reports, the heatmap is dominated by the US, as it has over 4 million. This isn't surprising, given that the FDA operates in the US. In order to visualize the extent of reporting in other countries, the count values were log transformed and a new heatmap was created using the log count values.  
+
+
+```{r}
+p <- ggplot(world.map, aes(x = long, y = lat, group = group, fill = log(count))) +
+geom_polygon() + expand_limits(x = world.map$long, y = world.map$lat) +
+labs(title = "Report Log Density by Country", x = "Longitude", y = "Latitude")
+p
+```
+  
+  
+From the heatmaps, it was determined that there were sufficient data to study reports from individual countries, or to be able to compare them.  
+
+Next, the number of adverse event reports by quarter was graphed.  
+
+
+```{r}
+#Draw bar plot of adverse event reports
+by.quarter <- demo %>%
+  group_by(year, quarter) %>%
+  summarise(count = n())
+  
+by.quarter$qname <- paste0(by.quarter$year, "Q", by.quarter$quarter)
+p <- ggplot(by.quarter, aes(x = qname, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Total Reports by Quarter", x = "Quarter", y = "Count") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+p
+```  
+
+
+In accordance with expectations, adverse event reports are steadily increasing per quarter. There appears to be a significant dip in the number of reports in the third quarter of 2012, but on a year over year basis, adverse events appear to be on an increasing trend. This could be due to many factors, including but not limited to the increasing complexity of drugs, increasing ease of use of reporting systems, and increasing population.  
+
+The age distribution of the 6 million or so patients was graphed in order to further characterize the population. Because ages were reported in units ranging from seconds to decades, all conversions were made to yield a year value.  
+
+
+```{r}
+#Draw bar plot of age distribution
+by.age <- demo %>%
+  filter(!is.na(age)) %>%
+  filter(!is.na(age_cod))
+
+by.age$age <- as.numeric(by.age$age)
+
+#Weed out negative age values
+by.age <- by.age %>%
+  filter(age >= 0)
+
+by.age <- cbind(by.age, age_yr = mapply(convertAge, by.age$age, by.age$age_cod))
+
+#Too many age and age_cod errors in db. Had to set an upper bound just above the oldest person in the world.
+by.age <- by.age %>%
+  filter(age_yr < 130)
+
+by.age.count <- by.age %>%
+  group_by(age_yr) %>%
+  summarise(count = n())
+
+p <- ggplot(by.age.count, aes(x = age_yr, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Age Distribution in Reports", x = "Age", y = "Count")
+p
+```  
+
+
+From the age distribution, we see that the patients who report adverse events tend to be in the older age groups. Linking back to the graphic displaying increasing adverse event reports per quarter, perhaps the issue has more to do with an aging population. Further, this may suggest that drugs taken by the older population tend to be the problematic ones, or that perhaps the younger population doesn't report adverse events because the effects may not be as pronounced as in the older population.  
+
+Gender distribution was examined next.  
+
+
+```{r}
+#Draw bar plot of gender distribution
+by.gender <- demo %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.gender, aes(x = sex, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Gender Distribution in Reports", x = "Gender", y = "Count")
+p
+
+by.gender[1,][[2]] / by.gender[2,][[2]]
+```  
+
+
+From the raw counts, we can see that there are almost 1.6 times as many female subjects reporting adverse events, relative to their male counterparts.  
+
+How does this manifest in the age groups?  
+
+
+```{r}
+#Draw bar plot of gender distribution in age groups
+by.age.gender <- by.age %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(age_yr, sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.age.gender, aes(x = age_yr, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Age Distribution of Reports by Gender", x = "Age", y = "Count")
+p
+```  
+
+
+From the gender distribution, we can see that the number of female subjects reporting adverse events starts to outpace the male subject reports, starting around the ages typical of adolescence. This may indicate complications involving medication commonly used by women during adolescence, such as Advil. Further, female adverse events are consistently higher than male adverse events after this point.  
+
+The data also provides information on whether the patient had a follow-up after the initial adverse event.  
+
+
+```{r}
+#Draw bar plot of follow-ups
+by.if <- demo %>%
+  filter(!is.na(i_f_cod)) %>%
+  filter(i_f_cod %in% c("I", "F"))
+
+by.if.count <- by.if %>%
+  group_by(i_f_cod) %>%
+  summarise(count = n())
+
+p <- ggplot(by.if.count, aes(x = i_f_cod, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Follow-up Distribution", x = "Follow-up Code", y = "Count")
+p
+```  
+
+
+It appears that most patients don't have follow-up appointments.  
+
+
+The occupation of the reporter of the adverse event was also examined  
+
+
+```{r}
+#Draw bar plot of report provider occupation
+by.job <- demo %>%
+  filter(!is.na(occp_cod))
+
+by.job.count <- by.job %>%
+  group_by(occp_cod) %>%
+  summarise(count = n())
+
+by.job.gender <- by.job %>%
+  filter(!is.na(sex)) %>%
+  filter(sex %in% c("F", "M")) %>%
+  group_by(occp_cod, sex) %>%
+  summarise(count = n())
+
+p <- ggplot(by.job.count, aes(x = occp_cod, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Reporter Occupation Distribution", x = "Occupation Code", y = "Count")
+p
+
+p <- ggplot(by.job.gender, aes(x = occp_cod, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Reporter Occupation by Gender", x = "Occupation Code", y = "Count")
+p
+```  
+
+From these results, it appears that significantly more female patients tend to self report adverse events, as indicated by the frequency of the "CN" or consumer category.  
+
+
+The weight distribution of the patient population was observed. All weight values were converted to Kg from Lbs and g.  
+
+
+```{r}
+#Draw bar graphs for weight
+by.wt <- demo %>%
+  filter(!is.na(wt)) %>%
+  filter(!is.na(wt_cod)) %>%
+  filter(wt_cod %in% c("KG", "LBS", "GMS"))
+
+by.wt$wt <- as.numeric(by.wt$wt)
+by.wt <- cbind(by.wt, wt_clean = mapply(convertWt, by.wt$wt, by.wt$wt_cod))
+
+#Too many wt and wt_cod errors in db. Had to set an upper bound just above the heaviest person in the world.
+by.wt <- by.wt %>%
+  filter(wt_clean < 700)
+  
+by.wt <- cbind(by.wt, wt_low = mapply(assignWtLow, by.wt$wt_clean))
+
+by.wt.low.count <- by.wt %>%
+  group_by(wt_low) %>%
+  summarise(count = n()) %>%
+  arrange(wt_low)
+
+by.wt.low.count$cat <- paste0(by.wt.low.count$wt_low, "-", by.wt.low.count$wt_low + 50)
+
+p <- ggplot(by.wt.low.count, aes(x = wt_low, y = count)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Grouped Weight Distribution in Reports", x = "Weight Groups (KG)", y = "Count")
+p
+```  
+
+Observing the weight distribution, it appears that there may be some logging error, perhaps in the weight units used. The overwhelming majority of weight measurements appear to be reported in Kgs, whereas one would expect a predominant use of Lbs since most of the adverse events data comes from the US. The heaviest man recorded in history is about 1400 pounds, or about 640 Kg. This weight distribution appears to indicate that a great number of adverse event patients are in the morbidly obese category.  
+
+
+Finally, another interesting component reported in the demographics data is whether or not the adverse event report was submitted online. While this is not directly related to characterizing the patient population, this information is of personal interest due to my prior experience in the regulatory division of big pharma. Truckloads of paperwork would be sent to the FDA upon the release of a new drug, but this tradition is being phased out as internet submissions are becoming more reliable and easier to access. We expect to observe the same trend in the adverse events reporting over time.  
+
+
+```{r}
+#Draw bar graph for electronic submissions by year
+by.esub <- demo %>%
+  filter(!is.na(e_sub)) %>%
+  filter(e_sub %in% c("N", "Y"))
+
+by.esub.quarter <- by.esub %>%
+  group_by(year, quarter, e_sub) %>%
+  summarise(count = n())
+
+by.esub.quarter$qname <- paste0(by.esub.quarter$year, "Q", by.esub.quarter$quarter)
+p <- ggplot(by.esub.quarter, aes(x = qname, y = count, fill = e_sub)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Electronic Submissions by Quarter", x = "Quarter", y = "Count") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+p
+```  
+
+As expected, electronic submissions start to outnumber paper submissions around the 4th quarter of 2006, and this trend develops significantly over time.  
+
+Further, incorporating patient outcomes data and joining this information with demographics data can lead to more interesting questions. For instance, which patient characteristics appear to be associated with the patient out come of "death"?  
+
+```{r}
+load("./EPID600_Kwon_RData/join.demo.outc.clean.RData")
+
+#Death by gender
+by.death.gender <- joined %>%
+  group_by(death, sex) %>%
+  summarise(count = n()) %>%
+  filter(death == 1)
+
+p <- ggplot(by.death.gender, aes(x = death, y = count, fill = sex)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Gender", x = "State", y = "Count")
+p
+
+#Death by age
+by.death.age <- joined %>%
+  group_by(age_yr, death) %>%
+  summarise(count = n())
+
+p <- ggplot(by.death.age, aes(x = age_yr, y = count, fill = death)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Age", x = "Age", y = "Count")
+p
+
+#Death by weight group
+joined <- cbind(joined, wt_low = mapply(assignWtLow, joined$wt_clean))
+
+by.death.wt.cat <- joined %>%
+  group_by(wt_low, death) %>%
+  summarise(count = n()) %>%
+  arrange(wt_low)
+
+p <- ggplot(by.death.wt.cat, aes(x = wt_low, y = count, fill = death)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Weight Category", x = "Weight (KG)", y = "Count")
+p
+
+#Death by follow-up
+by.death.fi <- joined %>%
+  group_by(i_f_cod, death) %>%
+  summarise(count = n())
+
+p <- ggplot(by.death.fi, aes(x = i_f_cod, y = count, fill = death)) +
+geom_bar(position = position_dodge(), stat = "identity") +
+labs(title = "Death by Follow-up Category", x = "Follow-up Status", y = "Count")
+p
+
+#Observe some correlations
+joined$sex <- sapply(joined$sex, function(x) ifelse(x == "M", 1, 0))
+chisq.test(table(joined$death, joined$sex))
+chisq.test(table(joined$death, joined$age_yr))
+chisq.test(table(joined$death, joined$wt_clean))
+chisq.test(table(joined$death, joined$i_f_cod))
+```  
+
+From the analysis, it appears that gender, age, weight, and follow-up history are all significantly correlated to the patient outcome of "death".  
+
+Finally, a partial analysis of drug information is provided. The reason that the analysis is partial is that it includes just slightly less than half of all available drug information data. Due to column inconsistencies during data cleaning, a file was not considered if there were a significant number of rows that had column shifts or missing column information due to the addition or removal of newline or separator characters. Basically, inconsistencies were introduced any time the reporter entered information about the drug and decided to add a bunch of new lines to the comments section. Attempting to modify the original data text file line by line, or trying to read the lines and throw out erroneous rows proved too time-consuming, as each erroneouls file had millions of rows. Even with only about half of the drug information data represented, there are over 14 million rows in the data.
+
+```{r}
+load("./EPID600_Kwon_RData/partial.drug.RData")
+
+top <- drug %>%
+  filter(!is.na(drugname)) %>%
+  group_by(drugname) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  top_n(10)
+
+top
+
+ps <- drug %>%
+  filter(!is.na(drugname)) %>%
+  filter(!is.na(role_cod)) %>%
+  filter(role_cod == "PS") %>%
+  group_by(drugname) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  top_n(10)
+
+ps
+```  
+
+Judging from the available data, Humira appeared as a first contender in both the top reported drug as well as the top drug for being the primary suspect in an adverse event. Humira is a drug related to treating the symptoms of rheumatoid arthritis, which puts the earlier demographic analysis into context; it's a befitting result for the population characteristics we observed. In fact, most of the top drugs in the top primary suspects list appears to be associated with diseases more commonly found in the older population. Further study could be conducted to determine which drugs are most reported per age group, or to identify which drugs are the most highly correlated with the patient outcome of "death".  
+
+In conclusion, this exploratory analysis found that given the case-only scenario where all data refer to patients who have had adverse events, factors such as gender, age, weight, and follow-up are significantly correlated with the patient outcome of "death". This is perhaps the only solid conclusion from this analysis, but the nature of this investigation was more for discovery, and I believe that there are many more trends in the data to be mined, pursuant of interest and time. Overall, this is a very interesting database to work with, and I believe I will continue to analyze this data.
