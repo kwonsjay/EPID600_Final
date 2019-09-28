@@ -1,10 +1,10 @@
-#EPID600 Final Project
-##Jay (Soon Jae) Kwon
-###Mining the FDA Adverse Events Database for Trends
+# EPID600 Final Project
+## Jay (Soon Jae) Kwon
+### Mining the FDA Adverse Events Database for Trends
 The goal of this project was to perform some exploratory analysis of the FDA Adverse Events Reporting System (FAERS), and to mine trends in the data. Due to the limitations of obtaining data from OpenFDA, I used text data of quarterly reports from FDA Adverse Events Reporting System (FAERS) as well as from Legacy Adverse Events Reporting System (LAERS), downloaded as individual zip files from the FDA website.  
 
 
-###Directory Information
+### Directory Information
 `EPID600_Kwon_Downloads` contains the raw downloaded files from the FDA website, formatted to indicate which quarter the data is for.  
 
 `EPID600_Kwon_Data` contains the unzipped directories for each archive file in the downloads folder, and some "flag" files to indicate whether or not certain datasets have been cleaned.  
@@ -19,7 +19,7 @@ The goal of this project was to perform some exploratory analysis of the FDA Adv
 
 `sample_demographic_data` contains a single sample of demographic data taken from a single quarter.  
 
-###File Information
+### File Information
 `iso.txt` contains the conversion table for country names to ISO2 format.  
 
 `downloadData.R` contains code to sequentially download all available FAERS/LAERS data from the FDA website.  
